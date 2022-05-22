@@ -29,12 +29,8 @@
     "google-protobuf": "^3.20.1",
     "onchange": "^7.1.0",
     "rango-sdk": "^0.0.4",
+    "typescript": "4.6.4",
     "web3-utils": "^1.7.3"
   },
-  "devDependencies": {
-    "@types/jest": "^25.2.3",
-    "@types/node": "^13.13.51",
-    "ts-jest": "^25.4.0",
-    "typescript": "^3.9.9"
-  }
+  "devDependencies": {}
 }

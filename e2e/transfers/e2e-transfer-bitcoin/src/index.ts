@@ -10,6 +10,10 @@ require("dotenv").config({path:'../../../.env'})
 require("dotenv").config({path:'../../../../.env'})
 
 const TAG  = " | e2e-test | "
+
+import * as core from "@shapeshiftoss/hdwallet-core";
+import * as native from "@shapeshiftoss/hdwallet-native";
+
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
 import {v4 as uuidv4} from 'uuid';
@@ -28,7 +32,7 @@ let FAUCET_ADDRESS = FAUCET_BTC_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
+// let Controller = require("@keepkey/keepkey-hardware-controller")
 
 
 let noBroadcast = false
@@ -44,35 +48,53 @@ let txid:string
 let invocationId:string
 let IS_SIGNED: boolean
 
-const start_keepkey_controller = async function(){
+// const start_keepkey_controller = async function(){
+//     try{
+//         let config = {
+//         }
+//
+//         //sub ALL events
+//         let controller = new Controller.KeepKey(config)
+//
+//         //state
+//         controller.events.on('state', function (request:any) {
+//             console.log("state: ", request)
+//         })
+//
+//         //errors
+//         controller.events.on('error', function (request:any) {
+//             console.log("state: ", request)
+//         })
+//
+//         //logs
+//         controller.events.on('logs', function (request:any) {
+//             console.log("logs: ", request)
+//         })
+//
+//         controller.init()
+//
+//         while(!controller.wallet){
+//             await sleep(1000)
+//         }
+//         return controller.wallet
+//     }catch(e){
+//         console.error(e)
+//     }
+// }
+
+const start_software_wallet = async function(){
     try{
-        let config = {
-        }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let mnemonic = process.env['WALLET_MAIN']
+        if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
+        const keyring = new core.Keyring();
+        //@ts-ignore
+        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
+            mnemonic,
+            deviceId: "native-wallet-test",
+        });
+        let wallet = await nativeAdapter.pairDevice("testid");
+        if(!wallet) throw Error("failed to init wallet!")
+        return wallet
     }catch(e){
         console.error(e)
     }
@@ -98,7 +120,8 @@ const test_service = async function () {
         log.info(tag,"app: ",app)
 
         //get HDwallet
-        let wallet = await start_keepkey_controller()
+        // let wallet = await start_keepkey_controller()
+        let wallet = await start_software_wallet()
         log.info(tag,"wallet: ",wallet)
 
         let result = await app.init()
