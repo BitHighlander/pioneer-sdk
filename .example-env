@@ -1,0 +1,18 @@
+#log levels options INFO | DEBUG
+#DEFAULT_LOG_LEVEL=DEBUG
+DEFAULT_LOG_LEVEL=INFO
+
+FAUCET_BCH_ADDRESS=qzxp0xc6vsj8apg9ym4n4jl45pyxtkpshuvr9smjp3
+FAUCET_BTC_ADDRESS=bc1qs7ek0m3ah0xhn9a2txxrgvcw50clnvuhymx87h
+
+
+#pioneer server
+#for local dev
+URL_PIONEER_SPEC=http://127.0.0.1:9001/spec/swagger.json
+URL_PIONEER_SOCKET="ws://127.0.0.1:9001"
+
+#public node
+#URL_PIONEER_SPEC=https://pioneers.dev/spec/swagger.json
+#URL_PIONEER_SOCKET="wss://pioneers.dev"
+
+WALLET_MAIN=alcohol woman abuse must during monitor noble actual mixed trade anger aisle

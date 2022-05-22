@@ -1,0 +1,42 @@
+{
+  "name": "@pioneer-platform/bitcoincash-e2e-transfer-bridge",
+  "version": "8.1.43",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "yarn": "yarn",
+    "start": "node lib/index.js",
+    "build": "tsc -p .",
+    "dev": "rm -Rf ~/.pioneer && npm run build && npm run start",
+    "test": "rm -Rf ~/.pioneer && jest --verbose --silent=true  --forceExit",
+    "test-debug": "rm -Rf ~/.pioneer && jest --verbose --forceExit",
+    "docker:build": "docker build --build-arg NPM_TOKEN=$NPM_TOKEN -t pioneer/osmosis-e2e-sdk:latest .",
+    "docker:run": "docker run --env-file=../../.env pioneer/osmosis-e2e-sdk:latest",
+    "docker:tag": "docker tag pioneer/osmosis-e2e-sdk:latest registry.digitalocean.com/pioneer/pioneer/osmosis-e2e-sdk:latest",
+    "docker:push": "docker push registry.digitalocean.com/pioneer/pioneer/osmosis-e2e-sdk:latest",
+    "docker:push:all": "npm run docker:build && npm run docker:tag && npm run docker:push"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.0",
+    "@keepkey/keepkey-hardware-controller": "0.0.18",
+    "@pioneer-platform/loggerdog": "^8.1.17",
+    "@shapeshiftoss/hdwallet-core": "^1.22.0",
+    "@shapeshiftoss/hdwallet-keepkey": "^1.22.0",
+    "@shapeshiftoss/hdwallet-keepkey-nodewebusb": "^1.22.0",
+    "@types/node": "^16.11.11",
+    "@types/uuid": "^8.3.3",
+    "assert": "^2.0.0",
+    "dotenv": "^6.2.0",
+    "typescript": "^4.2.4",
+    "usb": "^2.4.1",
+    "uuid": "^8.3.2",
+    "wait-promise": "^0.4.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.23",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.5.5",
+    "typescript": "^4.2.4"
+  },
+  "gitHead": "54da909f74f91cd10e6161a06aa75638c147ff96"
+}

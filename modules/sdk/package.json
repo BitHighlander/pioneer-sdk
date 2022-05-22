@@ -1,0 +1,40 @@
+{
+  "name": "@pioneer-sdk/sdk",
+  "version": "0.0.1",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "npm": "npm i",
+    "npm-update": "npm update",
+    "test": "npm run build && node __tests__/test-module.js",
+    "test-ts": "rm -R lib && npm run build && ts-node __tests__/test-module-ts.ts",
+    "lint": "prettier --write '**/**/*.ts'",
+    "start": "nodemon --watch 'src/**/*.ts' --exec ts-node __tests__node",
+    "build": "tsc -p .",
+    "build:watch": "npm run build && onchange 'src/**/*.ts' -- npm run build",
+    "prepublish": "npm run build",
+    "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
+    "test-jest": "jest --coverage",
+    "test:watch": "jest --coverage --watchAll",
+    "view:coverage": "serve coverage/lcov-report",
+    "clean": "rm -rf coverage src/**/*.js src/**/*.map lib node_modules"
+  },
+  "dependencies": {
+    "@shapeshiftoss/hdwallet-core": "^1.22.0",
+    "@shapeshiftoss/hdwallet-keepkey": "^1.22.0",
+    "@shapeshiftoss/hdwallet-keepkey-nodewebusb": "^1.22.0",
+    "@shapeshiftoss/hdwallet-keepkey-webusb": "^1.22.0",
+    "@types/google-protobuf": "^3.15.6",
+    "@types/usb": "^2.0.5",
+    "google-protobuf": "^3.20.1",
+    "onchange": "^7.1.0",
+    "rango-sdk": "^0.0.4",
+    "web3-utils": "^1.7.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^25.2.3",
+    "@types/node": "^13.13.51",
+    "ts-jest": "^25.4.0",
+    "typescript": "^3.9.9"
+  }
+}

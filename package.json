@@ -1,0 +1,30 @@
+{
+  "name": "pioneer-sdk",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "e2e/**/*",
+      "modules/**/*"
+    ],
+    "version": "independent"
+  },
+  "scripts": {
+    "clean": "make clean",
+    "build": "lerna run build --include-dependencies",
+    "refresh": "make clean && make",
+    "up-dev": "make && make up=dev",
+    "init-env": "cp .example-env .env",
+    "test": "make test",
+    "test-debug": "make test debug=true",
+    "release": "make && make up=release",
+    "version:patch": "lerna version patch --yes",
+    "version:minor": "lerna version minor --yes",
+    "version:major": "lerna version major --yes",
+    "publish:lerna": "lerna publish from-package --no-private --yes",
+    "build:rest": "cd services/pioneer-server && npm run docker:push:all",
+    "build:worker": "cd services/pioneer-pubkey-ingester && npm run docker:push:all"
+  },
+  "dependencies": {
+  }
+}
