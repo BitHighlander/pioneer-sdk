@@ -123,8 +123,9 @@ const test_service = async function () {
         // let wallet = await start_keepkey_controller()
         let wallet = await start_software_wallet()
         log.info(tag,"wallet: ",wallet)
-
-        let result = await app.init()
+        
+        //init with HDwallet
+        let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
 
