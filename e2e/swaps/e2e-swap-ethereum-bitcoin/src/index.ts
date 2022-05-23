@@ -21,15 +21,17 @@ let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'bitcoin'
-let ASSET = 'BTC'
+let BLOCKCHAIN = 'ethereum'
+let BLOCKCHAIN_OUTPUT = 'bitcoin'
+let ASSET = 'ETH'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0005"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-let FAUCET_BTC_ADDRESS = process.env['FAUCET_BTC_ADDRESS']
-let FAUCET_ADDRESS = FAUCET_BTC_ADDRESS
-if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
+
+let TRADE_PAIR  = "ETH_BTC"
+let INPUT_ASSET = ASSET
+let OUTPUT_ASSET = "BTC"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
@@ -135,17 +137,24 @@ const test_service = async function () {
         let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
-        let send = {
-            blockchain:BLOCKCHAIN,
-            asset:ASSET,
-            address:FAUCET_BTC_ADDRESS,
+        let swap:any = {
+            input:{
+                blockchain:BLOCKCHAIN,
+                asset:ASSET,
+            },
+            output:{
+                blockchain:BLOCKCHAIN_OUTPUT,
+                asset:OUTPUT_ASSET,
+            },
             amount:TEST_AMOUNT,
             noBroadcast:true
         }
-
-        let txid = await app.sendToAddress(send)
+        log.info(tag,"swap: ",swap)
+        let swapId = await app.swap(swap)
         log.info(tag,"txid: ",txid)
-
+        
+        //fullfill swap
+        
         log.notice("****** TEST PASS ******")
         //process
         process.exit(0)

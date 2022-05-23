@@ -26,7 +26,8 @@ let {
     xpubConvert,
     addressNListToBIP32,
     COIN_MAP_LONG,
-    COIN_MAP_KEEPKEY_LONG
+    COIN_MAP_KEEPKEY_LONG,
+    getRangoBlockchainName
 } = require('@pioneer-platform/pioneer-coins')
 import {
     BestRouteResponse,
@@ -57,27 +58,37 @@ export class SDK {
     private blockchains: any;
     private txBuilder: any;
     private user: any;
+    private rango: any;
+    private rangoApiKey: string;
     private init: (tx: any, options: any, asset: string) => Promise<void>;
     private getPubkey: (asset:string) => Promise<any>;
     private getPubkeys: () => Promise<any>;
     private getAddress: (asset:string) => Promise<any>;
     private sendToAddress: (tx:any) => Promise<any>;
+    private swap: (tx:any) => Promise<any>;
 
     constructor(spec:string,config:any) {
         this.blockchains = config.blockchains || blockchains
         this.wss = config.wss || 'wss://pioneers.dev'
+        this.username = config.username // or generate?
         this.queryKey = config.queryKey // or generate?
         this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
+        this.rangoApiKey = config.rangoApiKey || '4a624ab5-16ff-4f96-90b7-ab00ddfc342c'
         this.pubkeys = []
         this.init = async function (wallet:any) {
             let tag = TAG + " | init | "
             try {
-                //TODO verify init? verify blockchain support
+                if(!wallet) throw Error("wallet required!")
+                if(!this.username) throw Error("username required!")
+                if(!this.queryKey) throw Error("queryKey required!")
+                //TODO verify wallet init? verify blockchain support
                 this.wallet = wallet
-
                 //pioneer
                 let Pioneer = new pioneerApi(config.spec,config)
                 this.pioneer = await Pioneer.init()
+
+                //rango
+                this.rango = new RangoClient(this.rangoApiKey)
 
                 //init tx builder
                 log.info(tag,"TxBuilder.TxBuilder: ",TxBuilder)
@@ -93,6 +104,7 @@ export class SDK {
                 let userInfo = await this.pioneer.instance.User()
                 userInfo = userInfo.data
                 this.user = userInfo
+                log.info(tag,"user: ",userInfo)
 
                 //TODO verify ETH address match
 
@@ -121,7 +133,7 @@ export class SDK {
                         provider:'lol'
                     }
 
-                    log.debug(tag,"register payload: ",register)
+                    log.info(tag,"register payload: ",register)
                     let result = await this.pioneer.instance.Register(null, register)
                     result = result.data
                     log.info(tag,"register result: ",result)
@@ -443,8 +455,72 @@ export class SDK {
         this.swap = async function (swap:any) {
             let tag = TAG + " | swap | "
             try {
+                if(!swap.input) throw Error("Invalid swap! missing input!")
+                if(!swap.input.asset) throw Error("Invalid swap! missing input asset!")
+                if(!swap.input.blockchain) throw Error("Invalid swap! missing input blockchain!")
+                if(!swap.output) throw Error("Invalid swap! missing output!")
+                if(!swap.output.asset) throw Error("Invalid swap! missing output asset!")
+                if(!swap.output.blockchain) throw Error("Invalid swap! missing output blockchain!")
+                if(!swap.amount) throw Error("Invalid swap! missing amount!")
 
-                return pubkey
+                //get addys
+                let inputAddress = await this.getAddress(swap.input.asset)
+                let outputAddress = await this.getAddress(swap.output.asset)
+                if(!inputAddress) throw Error("failed to get address for input!")
+                if(!outputAddress) throw Error("failed to get address for output!")
+
+                //@TODO validate blockchains convert to rango blockchain! better
+                let inputBlockchainRango = getRangoBlockchainName(swap.input.blockchain)
+                let outputBlockchainRango = getRangoBlockchainName(swap.output.blockchain)
+
+                //build rango payloads
+                const connectedWallets = [
+                    {blockchain: swap.input.asset, addresses: [inputAddress]},
+                    {blockchain: swap.output.asset, addresses: [outputAddress]}
+                ]
+                const selectedWallets = {
+                    [inputBlockchainRango]:inputAddress,
+                    [outputBlockchainRango]:outputAddress
+                }
+                log.info(tag,"connectedWallets: ",connectedWallets)
+                log.info(tag,"selectedWallets: ",selectedWallets)
+
+                //TODO handle token addresses
+                const from = {blockchain: inputBlockchainRango, symbol: swap.input.asset, address: null}
+                const to = {blockchain: outputBlockchainRango, symbol: swap.output.asset, address: null}
+
+                //get rango Id
+                let body = {
+                    amount: swap.amount,
+                    affiliateRef: null,
+                    checkPrerequisites: true,
+                    connectedWallets,
+                    selectedWallets,
+                    from,
+                    to,
+                }
+                log.info("rango body: ",body)
+                let bestRoute
+                try{
+                    bestRoute = await this.rango.getBestRoute(body)
+                    log.info("bestRoute: ",bestRoute)
+                }catch(e){
+                    log.info(tag,"e: ",e)
+                }
+
+                if(!bestRoute.requestId) throw Error("failed to make swap request!")
+                //TODO save requestId in invocationId in Pioneer
+                
+                //if success
+                const transactionResponse = await this.rango.createTransaction({
+                    requestId: bestRoute.requestId,
+                    step: 1, // In this example, we assumed that route has only one step
+                    userSettings: { 'slippage': '1' },
+                    validations: { balance: true, fee: true },
+                })
+                log.info("transactionResponse: ",transactionResponse)
+
+                return bestRoute
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -478,7 +554,6 @@ export class SDK {
                 const expr = tx.blockchain;
                 switch (expr) {
                     case 'bitcoin':
-
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
                         break;
                     default:
@@ -486,15 +561,19 @@ export class SDK {
                 }
                 log.info(tag,"txSigned: ",txSigned)
                 
+                //@TODO get txid from signedTx
+                
                 //broadcast
-                // let broadcastBodyTransfer = {
-                //     network:tx.asset,
-                //     serialized:txSigned.serializedTx,
-                //     txid:"unknown",
-                //     invocationId:"unknown"
-                // }
-                // let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
-                // console.log("resultBroadcast: ",resultBroadcastTransfer)
+                if(!tx.noBroadcast){
+                    let broadcastBodyTransfer = {
+                        network:tx.asset,
+                        serialized:txSigned.serializedTx,
+                        txid:"unknown",
+                        invocationId:"unknown"
+                    }
+                    let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
+                    console.log("resultBroadcast: ",resultBroadcastTransfer)                    
+                }
                 return txSigned
             } catch (e) {
                 log.error(tag, "e: ", e)

@@ -1,5 +1,5 @@
 {
-  "name": "@pioneer-platform/bitcoin-e2e-transfer",
+  "name": "@pioneer-platform/e2e-swap-bitcoin-ethereum",
   "version": "0.0.1",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
