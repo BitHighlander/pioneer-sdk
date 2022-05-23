@@ -1,5 +1,5 @@
 {
-  "name": "@pioneer-sdk/sdk",
+  "name": "@pioneer-sdk/tx-builder",
   "version": "0.0.1",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -20,14 +20,11 @@
     "clean": "rm -rf coverage src/**/*.js src/**/*.map lib node_modules"
   },
   "dependencies": {
-    "@pioneer-platform/pioneer-client": "^8.1.24",
-    "@pioneer-platform/pioneer-coins": "8.1.43",
+    "@pioneer-platform/pioneer-coins": "^8.1.43",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",
-    "@shapeshiftoss/hdwallet-keepkey": "^1.22.0",
-    "@shapeshiftoss/hdwallet-keepkey-nodewebusb": "^1.22.0",
-    "@shapeshiftoss/hdwallet-keepkey-webusb": "^1.22.0",
     "@types/google-protobuf": "^3.15.6",
     "@types/usb": "^2.0.5",
+    "coinselect": "^3.1.12",
     "google-protobuf": "^3.20.1",
     "onchange": "^7.1.0",
     "rango-sdk": "^0.0.4",
