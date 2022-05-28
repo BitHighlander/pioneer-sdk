@@ -21,17 +21,12 @@ let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'ethereum'
-let BLOCKCHAIN_OUTPUT = 'bitcoin'
-let ASSET = 'ETH'
-let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
+let BLOCKCHAIN = 'osmosis'
+let ASSET = 'OSMO'
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "max"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
-let TRADE_PAIR  = "ETH_BTC"
-let INPUT_ASSET = ASSET
-let OUTPUT_ASSET = "BTC"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
@@ -132,46 +127,29 @@ const test_service = async function () {
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
         log.info(tag,"wallet: ",wallet)
-
-        //init with HDwallet
-        let result = await app.init()
+        log.info(tag,"wallet: ",wallet.transport)
+        wallet.transport.keyring.on(["*", "*", core.Events.PIN_REQUEST],function(err:any,resp:any){
+            console.log({err,resp})
+        })
+        
+        // //init with HDwallet
+        let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
-        //pair wallet
-        if(!app.isPaired){
-            let resultPair = await app.pairWallet('keepkey',wallet)
-            log.info(tag,"resultPair: ",resultPair)
-        }
-
-        //get available inputs
-        // assert(app.availableInputs)
-        //get available outputs
-        // assert(app.availableOutputs)
-
-        log.info(tag,"availableInputs: ",app.availableInputs.length)
-        log.info(tag,"availableOutputs: ",app.availableOutputs.length)
-
-        // let swap:any = {
-        //     input:{
-        //         blockchain:BLOCKCHAIN,
-        //         asset:ASSET,
-        //     },
-        //     output:{
-        //         blockchain:BLOCKCHAIN_OUTPUT,
-        //         asset:OUTPUT_ASSET,
-        //     },
+        // let defi = {
+        //     type:"lp-add",
+        //     blockchain:BLOCKCHAIN,
+        //     pair:ASSET+"_OSMO",
         //     amount:TEST_AMOUNT,
         //     noBroadcast:true
         // }
-        // log.info(tag,"swap: ",swap)
-        // let swapId = await app.swap(swap)
+        //
+        // let txid = await app.defi(defi)
         // log.info(tag,"txid: ",txid)
-        
-        //fullfill swap
-        
-        log.notice("****** TEST PASS ******")
-        //process
-        process.exit(0)
+
+        // log.notice("****** TEST PASS ******")
+        // //process
+        // process.exit(0)
     } catch (e) {
         log.error(e)
         //process

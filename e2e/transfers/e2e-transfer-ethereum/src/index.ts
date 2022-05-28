@@ -22,16 +22,14 @@ let wait = require('wait-promise');
 let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'ethereum'
-let BLOCKCHAIN_OUTPUT = 'bitcoin'
 let ASSET = 'ETH'
-let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
+let MIN_BALANCE = process.env['MIN_BALANCE_ETH'] || "0.004"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0005"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-
-let TRADE_PAIR  = "ETH_BTC"
-let INPUT_ASSET = ASSET
-let OUTPUT_ASSET = "BTC"
+let FAUCET_ETH_ADDRESS = process.env['FAUCET_ETH_ADDRESS']
+let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
+if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
@@ -134,41 +132,20 @@ const test_service = async function () {
         log.info(tag,"wallet: ",wallet)
 
         //init with HDwallet
-        let result = await app.init()
+        let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
-        //pair wallet
-        if(!app.isPaired){
-            let resultPair = await app.pairWallet('keepkey',wallet)
-            log.info(tag,"resultPair: ",resultPair)
-        }
-
-        //get available inputs
-        // assert(app.availableInputs)
-        //get available outputs
-        // assert(app.availableOutputs)
-
-        log.info(tag,"availableInputs: ",app.availableInputs.length)
-        log.info(tag,"availableOutputs: ",app.availableOutputs.length)
-
-        // let swap:any = {
-        //     input:{
-        //         blockchain:BLOCKCHAIN,
-        //         asset:ASSET,
-        //     },
-        //     output:{
-        //         blockchain:BLOCKCHAIN_OUTPUT,
-        //         asset:OUTPUT_ASSET,
-        //     },
+        // let send = {
+        //     blockchain:BLOCKCHAIN,
+        //     asset:ASSET,
+        //     address:FAUCET_BTC_ADDRESS,
         //     amount:TEST_AMOUNT,
         //     noBroadcast:true
         // }
-        // log.info(tag,"swap: ",swap)
-        // let swapId = await app.swap(swap)
+        //
+        // let txid = await app.sendToAddress(send)
         // log.info(tag,"txid: ",txid)
-        
-        //fullfill swap
-        
+
         log.notice("****** TEST PASS ******")
         //process
         process.exit(0)
