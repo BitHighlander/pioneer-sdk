@@ -10,6 +10,7 @@ const log = require("@pioneer-platform/loggerdog")()
 import * as core from "@shapeshiftoss/hdwallet-core";
 //requires
 const coinSelect = require('coinselect')
+import { numberToHex } from 'web3-utils'
 let {
     xpubConvert,
     bip32ToAddressNList
@@ -20,6 +21,7 @@ export class TxBuilder {
     private init: (tx: any) => Promise<any>;
     private transfer: (tx: any) => Promise<any>;
     private buildTx: (tx: any) => Promise<any>;
+    private swap: (tx: any) => Promise<any>;
 
 
 
@@ -31,6 +33,77 @@ export class TxBuilder {
                 
 
                 
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.swap = async function (tx:any) {
+            let tag = TAG + " | swap | "
+            try {
+                log.info(tag,"tx: ",tx)
+                let unsignedTx:any
+                const expr = tx.type;
+                switch (expr) {
+                    case 'EVM':
+                        log.info('EVM Tx type');
+                        //get account info
+                        let from = tx.from
+                        let gas_limit = 80000
+
+                        //get nonce
+                        let nonceRemote = await this.pioneer.instance.GetNonce(from)
+                        nonceRemote = nonceRemote.data
+
+                        //get gas price
+                        let gas_price = await this.pioneer.instance.GetGasPrice()
+                        gas_price = gas_price.data
+
+                        let nonce = nonceRemote // || override (for Replace manual Tx)
+
+                        // @ts-ignore Generic Transaction type incorrect
+                        if(!tx?.value) throw Error("Invalid EVM Tx missing value")
+                        // @ts-ignore
+                        let value = tx.value
+
+                        // @ts-ignore Generic Transaction type incorrect
+                        if(!tx?.to) throw Error("Invalid EVM Tx missing to")
+                        // @ts-ignore
+                        let to = tx.to
+
+                        // @ts-ignore Generic Transaction type incorrect
+                        if(!tx?.data) throw Error("Invalid EVM Tx missing data")
+                        // @ts-ignore
+                        let data = tx.data
+
+                        //sign
+                        let ethTx = {
+                            // addressNList: support.bip32ToAddressNList(masterPathEth),
+                            "addressNList":[
+                                2147483692,
+                                2147483708,
+                                2147483648,
+                                0,
+                                0
+                            ],
+                            nonce: numberToHex(nonce),
+                            gasPrice: numberToHex(gas_price),
+                            gasLimit: numberToHex(gas_limit),
+                            value,
+                            to,
+                            data,
+                            // chainId: 1,//TODO more networks
+                        }
+
+                        unsignedTx = ethTx
+                        break
+                    case 'TRANSFER':
+                    case 'COSMOS':
+                        throw Error("TODO")
+                    default:
+                        throw Error("unhandled!: "+expr)
+                }
+                log.info(tag,"unsignedTx FINAL: ",unsignedTx)
+                return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
             }
@@ -207,6 +280,10 @@ export class TxBuilder {
                 let txUnsigned:any
                 const expr = tx.type;
                 switch (expr) {
+                    case 'swap':
+                        txUnsigned = await this.transfer(tx)
+                        log.info(tag,"txUnsigned: DOUBLE final ",txUnsigned)
+                        break;
                     case 'transfer':
                         txUnsigned = await this.transfer(tx)
                         log.info(tag,"txUnsigned: DOUBLE final ",txUnsigned)

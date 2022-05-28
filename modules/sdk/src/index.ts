@@ -42,6 +42,7 @@ import { numberToHex } from 'web3-utils'
 let pioneerApi = require("@pioneer-platform/pioneer-client")
 let TxBuilder = require('@pioneer-sdk/tx-builder')
 const Events = require("@pioneer-platform/pioneer-events")
+let Invoke = require("@pioneer-platform/pioneer-invoke")
 // import * as core from "@shapeshiftoss/hdwallet-core";
 
 
@@ -65,6 +66,7 @@ export class SDK {
     public assetContext: string;
     public assetBalanceUsdValueContext: string;
     public assetBalanceNativeContext: string;
+    public invoke: any;
     private wss: any;
     private username: any;
     private queryKey: any;
@@ -81,6 +83,7 @@ export class SDK {
     private rango: any;
     private rangoApiKey: string;
     private isPaired: boolean;
+    private isConnected: boolean;
     private context: string;
     private init: (tx: any, options: any, asset: string) => Promise<void>;
     public pairWallet: (walletType:string, wallet: any) => Promise<any>;
@@ -91,7 +94,9 @@ export class SDK {
     private getPubkeys: () => Promise<any>;
     private getAddress: (asset:string) => Promise<any>;
     private sendToAddress: (tx:any) => Promise<any>;
-    private swap: (tx:any) => Promise<any>;
+    private swapQuote: (tx:any) => Promise<any>;
+    private buildSwap: (tx:any, swap:any) => Promise<any>;
+    private swapExecute: (tx:any) => Promise<any>;
     private defi: (tx:any) => Promise<any>;
     public getInvocation: (invocationId: string) => Promise<any>;
     public stopSocket: () => any;
@@ -109,6 +114,7 @@ export class SDK {
         this.markets = {}
         this.events = {}
         this.isPaired = false
+        this.isConnected = false
         this.context = ""
         this.contexts = []
         this.pubkeys = []
@@ -125,18 +131,24 @@ export class SDK {
         this.ibcChannels = []
         this.paymentStreams = []
         this.nfts = []
-        this.init = async function () {
+        this.init = async function (wallet?:any) {
             let tag = TAG + " | init | "
             try {
-                if(!wallet) throw Error("wallet required!")
                 if(!this.username) throw Error("username required!")
                 if(!this.queryKey) throw Error("queryKey required!")
                 if(!this.wss) throw Error("wss required!")
                 await this.startSocket()
-                
+
+                //wallet
+                if(wallet) {
+                    this.wallet =  wallet
+                    this.isConnected = true
+                }
+
                 //pioneer
                 let Pioneer = new pioneerApi(config.spec,config)
                 this.pioneer = await Pioneer.init()
+                if(!this.pioneer)throw Error("Fialed to init pioneer server!")
 
                 //rango
                 this.rango = new RangoClient(this.rangoApiKey)
@@ -145,6 +157,16 @@ export class SDK {
                 log.info(tag,"TxBuilder.TxBuilder: ",TxBuilder)
                 this.txBuilder = new TxBuilder.TxBuilder(this.pioneer, config)
                 log.info(tag,"txBuilder: ",this.txBuilder)
+
+                //init invoker
+                let configInvoke = {
+                    queryKey:this.queryKey,
+                    username:this.username,
+                    spec:this.spec
+                }
+                //get config
+                this.invoke = new Invoke(this.spec,configInvoke)
+                await  this.invoke.init()
 
                 //get health from server
                 let health = await this.pioneer.instance.Health()
@@ -217,9 +239,9 @@ export class SDK {
                 log.info(tag,"walletType: ",walletType)
                 this.wallet = wallet
 
-                wallet.transport.keyring.on(["*", "*", "*"],(message:any) => {
-                    this.events.events.emit('keepkey',message)
-                })
+                // wallet.transport.keyring.on(["*", "*", "*"],(message:any) => {
+                //     this.events.events.emit('keepkey',message)
+                // })
                 // wallet.transport.keyring.on(["*", "*", core.Events.PASSPHRASE_REQUEST],(message) => {
                 //     this.events.events.emit('keepkey',message)
                 // })
@@ -261,11 +283,9 @@ export class SDK {
                 //TODO this needed?
                 this.events.pair(this.username)
                 
-                this.context = result.context
-                this.pubkeys = result.pubkeys
-                this.balances = result.balances
 
-                return result
+
+                return true
             } catch (e) {
                 log.error(tag, "e: ", e)
             }
@@ -702,8 +722,8 @@ export class SDK {
                 throw Error(e)
             }
         }
-        this.swap = async function (swap:any) {
-            let tag = TAG + " | swap | "
+        this.swapQuote = async function (swap:any) {
+            let tag = TAG + " | swapQuote | "
             try {
                 if(!swap.input) throw Error("Invalid swap! missing input!")
                 if(!swap.input.asset) throw Error("Invalid swap! missing input asset!")
@@ -751,26 +771,142 @@ export class SDK {
                 }
                 log.info("rango body: ",body)
                 let bestRoute
+                let error
                 try{
                     bestRoute = await this.rango.getBestRoute(body)
                     log.info("bestRoute: ",bestRoute)
                 }catch(e){
                     log.info(tag,"e: ",e)
+                    error = e
                 }
 
-                if(!bestRoute.requestId) throw Error("failed to make swap request!")
-                //TODO save requestId in invocationId in Pioneer
+                let output
+                if(bestRoute){
+                    if(!bestRoute.requestId) throw Error("failed to make swap request!")
+                    if(!bestRoute.result.outputAmount) throw Error("failed to make quote!")
+
+                     output = {
+                        success:true,
+                        invocationId:bestRoute.requestId,
+                        amountIn:swap.amount,
+                        amountOut:bestRoute.result.outputAmount,
+                        input:swap.input,
+                        output:swap.output,
+                        swaps:bestRoute.result.swaps
+                    }
+                } else {
+                    output = {
+                        success:false,
+                        error
+                    }
+                }
+
+                return output
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.buildSwap = async function (invocationId:string, swap:any) {
+            let tag = TAG + " | buildSwap | "
+            try {
+                if(!invocationId) throw Error("Invalid swap! missing invocationId!")
                 
                 //if success
                 const transactionResponse = await this.rango.createTransaction({
-                    requestId: bestRoute.requestId,
+                    requestId: invocationId,
                     step: 1, // In this example, we assumed that route has only one step
                     userSettings: { 'slippage': '1' },
                     validations: { balance: true, fee: true },
                 })
                 log.info("transactionResponse: ",transactionResponse)
 
-                return bestRoute
+                let tx = transactionResponse.transaction
+                //TODO this might be jank mapping blockChain/rango to symbol!
+                tx.from = await this.getAddress(tx.blockChain)
+                if(!tx.from) throw Error("failed to get from address!")
+
+                let unsignedTx = await this.txBuilder.swap(tx)
+                log.info(tag,"unsignedTx: ",unsignedTx)
+                if(!unsignedTx) throw Error("failed to buildTx")
+
+                let invocation:any = {
+                    type:'swap',
+                    context:this.context,
+                    username:this.username,
+                    fee:"high",
+                    network:swap.input.blockchain,
+                    asset:swap.input.asset,
+                    swap:transactionResponse,
+                    unsignedTx
+                }
+
+                log.debug(tag,"invocation: ",invocation)
+                let result = await this.invoke.invoke(invocation)
+                if(!result) throw Error("Failed to create invocation!")
+                log.info("result: ",result)
+
+                result.rangoId = invocationId
+                result.swap = swap
+                result.unsignedTxs = []
+                result.unsignedTxs.push(unsignedTx)
+
+                return result
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.swapExecute = async function (swap:any) {
+            let tag = TAG + " | swapExecute | "
+            try {
+                //TODO connect status by wallet context
+                if(!this.isConnected) throw Error("Wallet not connected!")
+                log.info(tag,"swap: ",swap)
+                let invocationId = swap.invocationId
+                //TODO add all tx's to queue
+
+                //check status of swap
+
+                //if not signed/sign
+                //TODO handle multiple txs
+                let unsignedTx = swap.unsignedTxs[0]
+
+                let txSigned:any
+                const network = swap.swap.input.blockchain;
+                log.info(tag,"network: ",network)
+
+                switch (network) {
+                    case 'ethereum':
+                        txSigned = await this.wallet.ethSignTx(unsignedTx)
+                        break;
+                    case 'bitcoin':
+                        txSigned = await this.wallet.btcSignTx(unsignedTx)
+                        break;
+                    default:
+                        throw Error("network not supported! type"+network)
+                }
+                log.info(tag,"txSigned: ",txSigned)
+
+                //TODO updater invocation
+
+                //@TODO get txid from signedTx
+
+                //broadcast
+                if(!swap.swap.noBroadcast){
+                    let broadcastBodyTransfer = {
+                        network,
+                        serialized:txSigned.serializedTx || txSigned.serialized,
+                        txid:"unknown",
+                        invocationId
+                    }
+                    let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
+                    log.info("resultBroadcast: ",resultBroadcastTransfer)
+                }
+
+                return true
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore

@@ -134,7 +134,7 @@ const test_service = async function () {
         log.info(tag,"wallet: ",wallet)
 
         //init with HDwallet
-        let result = await app.init()
+        let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
         //pair wallet
@@ -151,22 +151,32 @@ const test_service = async function () {
         log.info(tag,"availableInputs: ",app.availableInputs.length)
         log.info(tag,"availableOutputs: ",app.availableOutputs.length)
 
-        // let swap:any = {
-        //     input:{
-        //         blockchain:BLOCKCHAIN,
-        //         asset:ASSET,
-        //     },
-        //     output:{
-        //         blockchain:BLOCKCHAIN_OUTPUT,
-        //         asset:OUTPUT_ASSET,
-        //     },
-        //     amount:TEST_AMOUNT,
-        //     noBroadcast:true
-        // }
-        // log.info(tag,"swap: ",swap)
-        // let swapId = await app.swap(swap)
-        // log.info(tag,"txid: ",txid)
-        
+        let swap:any = {
+            input:{
+                blockchain:BLOCKCHAIN,
+                asset:ASSET,
+            },
+            output:{
+                blockchain:BLOCKCHAIN_OUTPUT,
+                asset:OUTPUT_ASSET,
+            },
+            amount:TEST_AMOUNT,
+            noBroadcast:true
+        }
+
+        //get quote
+        let quote = await app.swapQuote(swap)
+        log.info(tag,"quote: ",quote)
+
+        //buildSwap
+        let swapBuilt = await app.buildSwap(quote.invocationId, swap)
+        log.info(tag,"swapBuilt: ",swapBuilt)
+
+        //executeSwap
+        let executionResp = await app.swapExecute(swapBuilt)
+        log.info(tag,"executionResp: ",executionResp)
+
+
         //fullfill swap
         
         log.notice("****** TEST PASS ******")
