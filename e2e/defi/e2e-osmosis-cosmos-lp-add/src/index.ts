@@ -30,8 +30,6 @@ let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
-
-
 let noBroadcast = false
 
 console.log("spec: ",spec)
@@ -40,6 +38,9 @@ console.log("wss: ",wss)
 let blockchains = [
     'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin','osmosis'
 ]
+
+let BLOCKCHAIN_OUTPUT = 'cosmos'
+let OUTPUT_ASSET = "ATOM"
 
 let txid:string
 let invocationId:string
@@ -83,17 +84,24 @@ const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
-        const keyring = new core.Keyring();
-        //@ts-ignore
-        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
+        const nativeAdapterArgs: any = {
             mnemonic,
-            deviceId: "native-wallet-test",
-        });
-        let wallet = await nativeAdapter.pairDevice("testid");
+            deviceId: 'test'
+        }
+        const wallet = new native.NativeHDWallet(nativeAdapterArgs)
+        await wallet.initialize()
+        await wallet.loadDevice({
+            mnemonic,
+            label: 'test',
+            skipChecksum: true
+        })
+
+
         if(!wallet) throw Error("failed to init wallet!")
         return wallet
     }catch(e){
         console.error(e)
+        throw e
     }
 }
 
@@ -122,19 +130,61 @@ const test_service = async function () {
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
-        //
+
+        //get KeepKey
+        // let wallet = await start_keepkey_controller()
+
         //get HDwallet
-        let wallet = await start_keepkey_controller()
-        // let wallet = await start_software_wallet()
-        log.info(tag,"wallet: ",wallet)
-        log.info(tag,"wallet: ",wallet.transport)
-        wallet.transport.keyring.on(["*", "*", core.Events.PIN_REQUEST],function(err:any,resp:any){
-            console.log({err,resp})
-        })
-        
-        // //init with HDwallet
-        let result = await app.init(wallet)
+        let wallet = await start_software_wallet()
+
+        // let isNative = await wallet?._isNative
+        // let isKeepKey = await wallet?._isKeepKey
+        // console.log(wallet)
+        // console.log("*** isNative: ",isNative)
+        // console.log("*** isKeepKey: ",isKeepKey)
+
+        let result = await app.init()
         log.info(tag,"result: ",result)
+
+        //pair wallet
+        if(!app.isConnected){
+            log.info(tag,"app.isConnected: ",app.isConnected)
+            let resultPair = await app.pairWallet(wallet)
+            log.info(tag,"resultPair: ",resultPair)
+        } else {
+            log.info(tag,"wallet info cached!")
+        }
+
+        let lp:any = {
+            leg1:{
+                blockchain:BLOCKCHAIN,
+                asset:ASSET,
+            },
+            leg2:{
+                blockchain:BLOCKCHAIN_OUTPUT,
+                asset:OUTPUT_ASSET,
+            },
+            pair:"OSMO_ATOM",
+            amountLeg1:"0.01",
+            noBroadcast:false
+        }
+
+        //get max amount
+        log.info(tag,"lp: ",lp)
+        //get amount given input leg1 amount
+        let quote = await app.lpQuote(lp)
+        log.info(tag,"quote: ",quote)
+
+        //TODO
+        //get amount given input leg2 amount
+
+        //build
+        let txUnsigned = await app.buildLp(quote.invocationId)
+        log.info(tag,"txUnsigned: ",txUnsigned)
+
+        //execute
+        // let txUnsigned = await app.buildLp(quote.invocationId)
+        // log.info(tag,"txUnsigned: ",txUnsigned)
 
         // let defi = {
         //     type:"lp-add",

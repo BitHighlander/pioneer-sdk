@@ -25,6 +25,7 @@ let {
     getSwapProtocals,
     xpubConvert,
     addressNListToBIP32,
+    COIN_MAP,
     COIN_MAP_LONG,
     COIN_MAP_KEEPKEY_LONG,
     getRangoBlockchainName
@@ -39,6 +40,7 @@ import {
     WalletRequiredAssets
 } from "rango-sdk"
 import { numberToHex } from 'web3-utils'
+const keccak256 = require('keccak256')
 let pioneerApi = require("@pioneer-platform/pioneer-client")
 let TxBuilder = require('@pioneer-sdk/tx-builder')
 const Events = require("@pioneer-platform/pioneer-events")
@@ -63,6 +65,7 @@ export class SDK {
     public apiVersion: string;
     public initialized: boolean;
     public invocationContext: string;
+    public invocations: any;
     public assetContext: string;
     public assetBalanceUsdValueContext: string;
     public assetBalanceNativeContext: string;
@@ -72,6 +75,7 @@ export class SDK {
     private queryKey: any;
     private spec: any;
     private wallet: any;
+    private walletType: string;
     private pubkeys: any;
     private keyring: any;
     private device: any;
@@ -86,7 +90,7 @@ export class SDK {
     private isConnected: boolean;
     private context: string;
     private init: (tx: any, options: any, asset: string) => Promise<void>;
-    public pairWallet: (walletType:string, wallet: any) => Promise<any>;
+    public pairWallet: (wallet: any) => Promise<any>;
     private removePin: () => Promise<any>;
     private startSocket: () => Promise<any>;
     private updateContext: () => Promise<any>;
@@ -97,8 +101,13 @@ export class SDK {
     private swapQuote: (tx:any) => Promise<any>;
     private buildSwap: (tx:any, swap:any) => Promise<any>;
     private swapExecute: (tx:any) => Promise<any>;
+    private lpQuote: (tx:any) => Promise<any>;
+    private buildLp: (tx:any) => Promise<any>;
+    // private execute: (tx:any) => Promise<any>;
     private defi: (tx:any) => Promise<any>;
+    private updateInvocation: (tx:any) => Promise<any>;
     public getInvocation: (invocationId: string) => Promise<any>;
+    public getInvocations: () => Promise<any>;
     public stopSocket: () => any;
     constructor(spec:string,config:any) {
         this.status = 'preInit'
@@ -118,9 +127,11 @@ export class SDK {
         this.context = ""
         this.contexts = []
         this.pubkeys = []
+        this.invocations = []
         this.balances = []
         this.markets = {}
         this.context = ""
+        this.walletType = ""
         this.invocationContext = ""
         this.assetContext = ""
         this.assetBalanceNativeContext = ""
@@ -142,6 +153,14 @@ export class SDK {
                 //wallet
                 if(wallet) {
                     this.wallet =  wallet
+                    let isNative = await wallet?._isNative
+                    let isKeepKey = await wallet?._isKeepKey
+                    if(isNative) this.walletType = 'native'
+                    if(isKeepKey) this.walletType = 'keepkey'
+                    if(!isNative && !isKeepKey) {
+                        log.info(tag,"wallet: ",wallet)
+                        throw Error("Unhandled Wallet type!")
+                    }
                     this.isConnected = true
                 }
 
@@ -175,26 +194,32 @@ export class SDK {
 
                 //get status from server
                 let status = await this.pioneer.instance.Status()
-                log.info(tag,"pioneer status: ",status.data)
+                log.debug(tag,"pioneer status: ",status.data)
                 this.markets = status.data.rango
+
+                //build cache
+                this.getInvocations()
 
                 //get user info
                 let userInfo = await this.pioneer.instance.User()
                 userInfo = userInfo.data
                 this.user = userInfo
-                // log.info(tag,"user: ",userInfo)
-                log.info(tag,"user pubkeys: ",userInfo.pubkeys.length)
-                log.info(tag,"user balances: ",userInfo.balances.length)
+                log.info(tag,"user: ",userInfo)
 
                 //TODO verify ETH address match
 
-                if(userInfo.balances.length === 0) {
+                if(!userInfo || userInfo.error || userInfo?.balances.length === 0) {
                     //no wallets paired
                     log.info(tag, "user not registered! info: ",userInfo)
+                    if(wallet){
+                        await this.pairWallet(wallet)
+                    }
 
 
                 } else if(userInfo.balances.length > 0) {
                     log.info(tag,"CACHE FOUND! userInfo: ",userInfo.context)
+                    log.info(tag,"user pubkeys: ",userInfo.pubkeys.length)
+                    log.info(tag,"user balances: ",userInfo.balances.length)
 
                     //get available inputs (blockchains with balances)
                     this.availableInputs = userInfo.balances
@@ -233,12 +258,27 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
-        this.pairWallet = async function (walletType:string, wallet:string) {
-            let tag = TAG + " | getInvocations | "
+        this.pairWallet = async function (wallet:any) {
+            let tag = TAG + " | pairWallet | "
             try {
-                log.info(tag,"walletType: ",walletType)
+                if(!wallet) throw Error("Must have wallet to pair!")
+                if(!this.blockchains) throw Error("Must have blockchains to pair!")
+                //wallet
+                if(wallet) {
+                    this.wallet =  wallet
+                    let isNative = await wallet?._isNative
+                    let isKeepKey = await wallet?._isKeepKey
+                    if(isNative) this.walletType = 'native'
+                    if(isKeepKey) this.walletType = 'keepkey'
+                    if(!isNative && !isKeepKey) {
+                        log.info(tag,"wallet: ",wallet)
+                        throw Error("can not pair! Unhandled Wallet type!")
+                    }
+                    this.isConnected = true
+                }
+                //TODO what happens if already inited with wallet?
                 this.wallet = wallet
-
+                if(!this.wallet) throw Error("failed to init wallet! can not pair")
                 // wallet.transport.keyring.on(["*", "*", "*"],(message:any) => {
                 //     this.events.events.emit('keepkey',message)
                 // })
@@ -271,7 +311,7 @@ export class SDK {
                         provider:'lol'
                     }
                     log.debug(tag,"register payload: ",register)
-                    let result = await this.pioneer.Register(null, register)
+                    let result = await this.pioneer.instance.Register(null, register)
                     log.debug(tag,"register result: ",result)
                     result = result.data
 
@@ -294,7 +334,17 @@ export class SDK {
             let tag = TAG + " | getInvocations | "
             try {
                 if(!invocationId) throw Error("invocationId required!")
-                let result = await this.pioneer.Invocation(invocationId)
+                let result = await this.pioneer.instance.Invocation(invocationId)
+                return result.data
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.getInvocations = async function () {
+            let tag = TAG + " | getInvocations | "
+            try {
+                let result = await this.pioneer.instance.Invocations()
+                this.invocations = result.data
                 return result.data
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -324,7 +374,7 @@ export class SDK {
                     this.updateContext()
                     this.events.pair(this.username)
 
-                    log.debug(tag,"EVENT type: ",event.type)
+                    log.info(tag,"EVENT type: ",event.type)
 
                 });
 
@@ -335,7 +385,7 @@ export class SDK {
                     this.updateContext()
                     this.events.pair(this.username)
 
-                    log.debug(tag,"EVENT type: ",event.type)
+                    log.info(tag,"EVENT type: ",event.type)
 
                 });
 
@@ -346,12 +396,12 @@ export class SDK {
                 });
 
                 this.events.events.on('pubkey', (event:any) => {
-                    log.debug(tag,"pubkey event!", event)
+                    log.info(tag,"pubkey event!", event)
                     //update pubkeys
                 });
 
                 this.events.events.on('balances', (event:any) => {
-                    log.debug(tag,"balances event!", event)
+                    log.info(tag,"balances event!", event)
                 });
 
                 //onSign
@@ -386,20 +436,20 @@ export class SDK {
             let tag = TAG + " | updateContext | "
             try {
                 //get info
-                let userInfo = await this.pioneer.User()
+                let userInfo = await this.pioneer.instance.User()
                 userInfo = userInfo.data
                 log.info(tag,"userInfo: ",userInfo)
 
                 if(userInfo.username)this.username = userInfo.username
                 if(userInfo.context)this.context = userInfo.context
-                // if(userInfo.wallets)this.wallets = userInfo.wallets
-                // if(userInfo.balances)this.balances = userInfo.balances
-                // if(userInfo.pubkeys && this.pubkeys.length < userInfo.pubkeys.length)this.pubkeys = userInfo.pubkeys
-                // if(userInfo.totalValueUsd)this.totalValueUsd = parseFloat(userInfo.totalValueUsd)
-                // if(userInfo.invocationContext)this.invocationContext = userInfo.invocationContext
-                // if(userInfo.assetContext)this.assetContext = userInfo.assetContext
-                // if(userInfo.assetBalanceNativeContext)this.assetBalanceNativeContext = userInfo.assetBalanceNativeContext
-                // if(userInfo.assetBalanceUsdValueContext)this.assetBalanceUsdValueContext = userInfo.assetBalanceUsdValueContext
+                if(userInfo.wallets)this.wallets = userInfo.wallets
+                if(userInfo.balances)this.balances = userInfo.balances
+                if(userInfo.pubkeys && this.pubkeys.length < userInfo.pubkeys.length)this.pubkeys = userInfo.pubkeys
+                if(userInfo.totalValueUsd)this.totalValueUsd = parseFloat(userInfo.totalValueUsd)
+                if(userInfo.invocationContext)this.invocationContext = userInfo.invocationContext
+                if(userInfo.assetContext)this.assetContext = userInfo.assetContext
+                if(userInfo.assetBalanceNativeContext)this.assetBalanceNativeContext = userInfo.assetBalanceNativeContext
+                if(userInfo.assetBalanceUsdValueContext)this.assetBalanceUsdValueContext = userInfo.assetBalanceUsdValueContext
 
                 return userInfo
             } catch (e) {
@@ -411,7 +461,8 @@ export class SDK {
             try {
                 let output:any = {}
                 log.info(tag,"checkpoint")
-                if(!this.wallet) throw Error("Wallet not init!")
+                log.info(tag,"this.wallet: ",this.wallet)
+                if(!this.wallet) throw Error("can not get pubkeys! Wallet not init!")
                 if(!this.blockchains) throw Error("blockchains not set!")
 
                 //get paths for blockchains
@@ -430,33 +481,6 @@ export class SDK {
                         throw Error("Failed to find path for blockchain: "+blockchain)
                     }
                 }
-                //if keepkey
-                log.info(tag,"checkpoint: ",this.wallet.getVendor())
-                log.info(tag,"checkpoint: ",await this.wallet.getVendor())
-                // if(this.wallet.getVendor() === 'KeepKey' || true){
-                //     log.info(tag,"Is keepkey, format pubkeys")
-                //     let pathsKeepkey:any = []
-                //     for(let i = 0; i < paths.length; i++){
-                //         let path = paths[i]
-                //         let pathForKeepkey:any = {}
-                //         //send coin as bitcoin
-                //         pathForKeepkey.symbol = path.symbol
-                //         pathForKeepkey.addressNList = path.addressNList
-                //         //why
-                //         pathForKeepkey.coin = 'Bitcoin'
-                //         pathForKeepkey.script_type = 'p2pkh'
-                //         //showDisplay
-                //         pathForKeepkey.showDisplay = false
-                //         pathsKeepkey.push(pathForKeepkey)
-                //     }
-                //
-                //     log.notice("***** paths IN: ",pathsKeepkey.length)
-                //     log.notice("***** paths IN: ",pathsKeepkey)
-                //     //
-                //     log.info(tag,"this.wallet: ",this.wallet)
-                //     let result = await this.wallet.getPublicKeys(pathsKeepkey)
-                //     log.info(tag,"pubkeys: ",pubkeys)
-                // }
 
                 log.info(tag,"Is keepkey, format pubkeys")
                 let pathsKeepkey:any = []
@@ -467,19 +491,44 @@ export class SDK {
                     pathForKeepkey.symbol = path.symbol
                     pathForKeepkey.addressNList = path.addressNList
                     //why
-                    pathForKeepkey.coin = 'Bitcoin'
+                    pathForKeepkey.coin = 'bitcoin'
                     pathForKeepkey.script_type = 'p2pkh'
                     //showDisplay
                     pathForKeepkey.showDisplay = false
                     pathsKeepkey.push(pathForKeepkey)
                 }
 
-                log.notice("***** paths IN: ",pathsKeepkey.length)
-                log.notice("***** paths IN: ",pathsKeepkey)
-                //
+                log.info("***** paths IN: ",pathsKeepkey.length)
+                log.info("***** paths IN: ",pathsKeepkey)
+
+                //verify paths for each enabled blockchain
+                for(let i = 0; i < this.blockchains.length; i++){
+                    let blockchain = this.blockchains[i]
+                    log.debug(tag,"blockchain: ",blockchain)
+
+                    //find blockchain in path
+                    let isFound = paths.find((path: { blockchain: string; }) => {
+                        return path.blockchain === blockchain
+                    })
+                    if(!isFound){
+                        throw Error("Failed to find path for blockchain: "+blockchain)
+                    }
+                }
+
+                //this.wallet
                 log.info(tag,"this.wallet: ",this.wallet)
                 let result = await this.wallet.getPublicKeys(pathsKeepkey)
+                // if(this.walletType === 'keepkey'){
+                //     result = await this.wallet.getPublicKeys(pathsKeepkey)
+                // } else if(this.walletType === 'native'){
+                //     log.info(tag,"pathsKeepkey: ",pathsKeepkey )
+                //     result = await this.wallet.getPublicKeys(pathsKeepkey)
+                // } else {
+                //     throw Error("unhandled wallet")
+                // }
                 log.info(tag,"result: ",result)
+                if(!result) throw Error("failed to get pubkeys!")
+
 
                 let pubkeys:any = []
                 for(let i = 0; i < result.length; i++){
@@ -521,7 +570,7 @@ export class SDK {
 
                     //get master address
                     let address
-                    log.info(tag,"getAddress: ",pubkey.symbol)
+                    log.info(tag,"symbol: ",pubkey.symbol)
                     switch(pubkey.symbol) {
                         case 'BTC':
                         case 'BCH':
@@ -563,13 +612,17 @@ export class SDK {
                             })
                             break;
                         case 'OSMO':
-                            // address = await this.wallet.osmosisGetAddress({
-                            //     addressNList:paths[i].addressNListMaster,
-                            //     coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                            //     scriptType: paths[i].script_type,
-                            //     showDisplay: false
-                            // })
-                            address = "comingsoon"
+                            if(!this.wallet.supportsOsmosis){
+                                address = await this.wallet.osmosisGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                            } else {
+                                //TODO handle this better bro!
+                                address = 'NOT:SUPPORTED'
+                            }
                             break;
                         case 'BNB':
                             address = await this.wallet.binanceGetAddress({
@@ -701,6 +754,15 @@ export class SDK {
                 throw Error(e)
             }
         }
+        this.updateInvocation = async function (updateBody:any) {
+            let tag = TAG + " | updateInvocation | "
+            try {
+                let output = await this.pioneer.instance.UpdateInvocation(null,updateBody)
+                return output.data;
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
         this.defi = async function (defi:any) {
             let tag = TAG + " | defi | "
             try {
@@ -716,6 +778,103 @@ export class SDK {
 
 
                 return true
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.lpQuote = async function (lp:any) {
+            let tag = TAG + " | lpQuote | "
+            try {
+                if(!lp.leg1) throw Error("Invalid swap! missing input!")
+                if(!lp.leg1.asset) throw Error("Invalid swap! missing input asset!")
+                if(!lp.leg1.blockchain) throw Error("Invalid swap! missing input blockchain!")
+                if(!lp.leg2) throw Error("Invalid swap! missing output!")
+                if(!lp.leg2.asset) throw Error("Invalid swap! missing output asset!")
+                if(!lp.leg2.blockchain) throw Error("Invalid swap! missing output blockchain!")
+                if(!lp.amountLeg1 && !lp.amountLeg2) throw Error("Invalid swap! missing amountOut and amountIn!")
+                if(!lp.pair) throw Error("Invalid swap! missing pair!")
+
+                //TODO handle amount Max
+
+                log.info(tag,"lp: ",lp)
+                log.info(tag,"lp: ",{pair:lp.pair,amountIn:lp.amountIn})
+                // osmosis
+                if(lp.leg1.blockchain === 'osmosis'){
+                    lp.protocol = 'osmosis'
+                    //get quote for out
+                    let swapQuote = await this.pioneer.instance.QuoteSwap({pair:lp.pair,amountIn:lp.amountLeg1})
+                    swapQuote = swapQuote.data
+                    log.info(tag,"swapQuote: ",swapQuote)
+                    lp.amountLeg2 = swapQuote.buyAmount
+                } else {
+                    throw Error("not supported input!")
+                }
+
+                // oX
+
+                // thorchain
+
+
+                let invocation:any = {
+                    type:'lp',
+                    protocol:lp.protocol,
+                    network:COIN_MAP[lp.leg1.blockchain],
+                    context:this.context,
+                    username:this.username,
+                    lp
+                }
+
+                log.debug(tag,"invocation: ",invocation)
+                let result = await this.invoke.invoke(invocation)
+                if(!result) throw Error("Failed to create invocation!")
+                log.info("result: ",result)
+
+                let output = {
+                    success:true,
+                    invocationId:result.invocationId,
+                    lp
+                }
+
+                return output
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.buildLp = async function (invocationId:string) {
+            let tag = TAG + " | buildSwap | "
+            try {
+                if(!invocationId) throw Error("Invalid swap! missing invocationId!")
+
+                //get invocation
+                let invocation = await this.getInvocation(invocationId)
+                log.info(tag,"invocation: ",invocation)
+
+                let lp = invocation.invocation.lp
+                if(!lp) throw Error("invalid invocation! missing lp object")
+                if(!lp.leg1.asset) throw Error("invalid invocation! missing lp.leg1.symbol")
+
+                let unsignedTx
+                if(lp.leg1.blockchain === 'osmosis'){
+                    lp.from = await this.getAddress(lp.leg1.asset)
+                    unsignedTx = await this.txBuilder.lp(lp)
+                    log.info(tag,"unsignedTx: ",unsignedTx)
+                    if(!unsignedTx) throw Error("failed to buildTx")
+                } else {
+                    throw Error("not supported input!")
+                }
+
+                invocation.unsignedTx = unsignedTx
+                invocation.unsignedTxs = []
+                invocation.unsignedTxs.push(unsignedTx)
+
+                //update invocation
+                await this.updateInvocation(invocation)
+
+                return invocation
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -784,8 +943,25 @@ export class SDK {
                 if(bestRoute){
                     if(!bestRoute.requestId) throw Error("failed to make swap request!")
                     if(!bestRoute.result.outputAmount) throw Error("failed to make quote!")
+                    //expiration (time needed until accepted)
+                    let duration
+                    //create invocation
+                    let invocation:any = {
+                        type:'swap',
+                        network:COIN_MAP[swap.input.blockchain],
+                        context:this.context,
+                        username:this.username,
+                        invocationId:bestRoute.requestId,
+                        swap,
+                        route:bestRoute
+                    }
 
-                     output = {
+                    log.debug(tag,"invocation: ",invocation)
+                    let result = await this.invoke.invoke(invocation)
+                    if(!result) throw Error("Failed to create invocation!")
+                    log.info("result: ",result)
+
+                    output = {
                         success:true,
                         invocationId:bestRoute.requestId,
                         amountIn:swap.amount,
@@ -808,7 +984,7 @@ export class SDK {
                 throw Error(e)
             }
         }
-        this.buildSwap = async function (invocationId:string, swap:any) {
+        this.buildSwap = async function (invocationId:string) {
             let tag = TAG + " | buildSwap | "
             try {
                 if(!invocationId) throw Error("Invalid swap! missing invocationId!")
@@ -831,82 +1007,86 @@ export class SDK {
                 log.info(tag,"unsignedTx: ",unsignedTx)
                 if(!unsignedTx) throw Error("failed to buildTx")
 
-                let invocation:any = {
-                    type:'swap',
-                    context:this.context,
-                    username:this.username,
-                    fee:"high",
-                    network:swap.input.blockchain,
-                    asset:swap.input.asset,
-                    swap:transactionResponse,
-                    unsignedTx
-                }
+                //get invocation
+                let invocation = await this.getInvocation(invocationId)
 
-                log.debug(tag,"invocation: ",invocation)
-                let result = await this.invoke.invoke(invocation)
-                if(!result) throw Error("Failed to create invocation!")
-                log.info("result: ",result)
+                invocation.unsignedTx = unsignedTx
+                invocation.unsignedTxs = []
+                invocation.unsignedTxs.push(unsignedTx)
+                invocation.transactionResponse = transactionResponse
 
-                result.rangoId = invocationId
-                result.swap = swap
-                result.unsignedTxs = []
-                result.unsignedTxs.push(unsignedTx)
+                //update invocation
+                await this.updateInvocation(invocation)
 
-                return result
+                return invocation
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
                 throw Error(e)
             }
         }
-        this.swapExecute = async function (swap:any) {
+        this.swapExecute = async function (invocationId:any) {
             let tag = TAG + " | swapExecute | "
             try {
                 //TODO connect status by wallet context
                 if(!this.isConnected) throw Error("Wallet not connected!")
-                log.info(tag,"swap: ",swap)
-                let invocationId = swap.invocationId
+
+                //get invocation
+                let invocation = await this.getInvocation(invocationId)
+                log.info(tag,"invocation: ",invocation)
+
+
                 //TODO add all tx's to queue
 
                 //check status of swap
 
                 //if not signed/sign
                 //TODO handle multiple txs
-                let unsignedTx = swap.unsignedTxs[0]
+                let unsignedTx = invocation.unsignedTx
 
                 let txSigned:any
-                const network = swap.swap.input.blockchain;
-                log.info(tag,"network: ",network)
+                //TODO get this from the tx itself?
+                const blockchain = invocation.invocation.swap.input.blockchain;
+                log.info(tag,"blockchain: ",blockchain)
 
-                switch (network) {
+                switch (blockchain) {
                     case 'ethereum':
                         txSigned = await this.wallet.ethSignTx(unsignedTx)
+                        const txid = keccak256(txSigned.serialized).toString('hex')
+                        log.info(tag,"txid: ",txid)
+                        txSigned.txid = txid
+
                         break;
                     case 'bitcoin':
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
                         break;
                     default:
-                        throw Error("network not supported! type"+network)
+                        throw Error("network not supported! type"+blockchain)
                 }
                 log.info(tag,"txSigned: ",txSigned)
 
-                //TODO updater invocation
-
-                //@TODO get txid from signedTx
+                //get invocation
+                invocation = await this.getInvocation(invocationId)
+                invocation.txSigned = unsignedTx
+                invocation.signedTxs = [txSigned]
 
                 //broadcast
-                if(!swap.swap.noBroadcast){
-                    let broadcastBodyTransfer = {
-                        network,
-                        serialized:txSigned.serializedTx || txSigned.serialized,
-                        txid:"unknown",
-                        invocationId
-                    }
-                    let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
-                    log.info("resultBroadcast: ",resultBroadcastTransfer)
+                let broadcastBodyTransfer = {
+                    //TODO align network with blockchain strings!
+                    network:COIN_MAP[blockchain],
+                    serialized:txSigned.serializedTx || txSigned.serialized,
+                    txid:"unknown", //TODO get txid before broadcast on all chains!
+                    invocationId,
+                    noBroadcast:invocation.noBroadcast
                 }
+                let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
+                log.info("resultBroadcast: ",resultBroadcastTransfer)
+                invocation.broadcast = resultBroadcastTransfer
 
-                return true
+                //update invocation
+                await this.updateInvocation(invocation)
+
+                return invocation
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore

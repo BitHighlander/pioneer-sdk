@@ -22,6 +22,7 @@ export class TxBuilder {
     private transfer: (tx: any) => Promise<any>;
     private buildTx: (tx: any) => Promise<any>;
     private swap: (tx: any) => Promise<any>;
+    private lp: (tx: any) => Promise<any>;
 
 
 
@@ -33,6 +34,88 @@ export class TxBuilder {
                 
 
                 
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.lp = async function (lp:any) {
+            let tag = TAG + " | swap | "
+            try {
+                log.info(tag,"lp: ",lp)
+                let unsignedTx:any
+                const expr = lp.protocol;
+                switch (expr) {
+                    case 'ethereum':
+                        throw Error("ethereum Not supported!")
+                        break
+                    case 'osmosis':
+
+                        const fee = '100'
+                        const gas = '1350000'
+                        const osmoAddress = lp.from
+
+                        const ibcVoucherAtomOsmo =
+                            'ibc/27394FB092D2ECCD56123C74F36E4C1F926001CEADA9CA97EA622B25F41E5EB2'
+
+                        let sellAmount = lp.amountleg1
+                        let buyAmount = lp.amountleg2
+                        log.info(tag,"{network:'OSMO',address:osmoAddress}: ",{network:'OSMO',address:osmoAddress})
+                        let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'OSMO',address:osmoAddress})
+                        log.info(tag,"masterInfo: ",masterInfo)
+                        masterInfo = masterInfo.data
+
+                        log.info(tag,"masterInfo: ",masterInfo)
+                        let sequence = masterInfo.result.value.sequence || 0
+                        let account_number = masterInfo.result.value.account_number
+                        sequence = parseInt(String(sequence))
+
+                        const tx1 = {
+                            memo: '',
+                            fee: {
+                                amount: [
+                                    {
+                                        amount: fee.toString(),
+                                        denom: 'uosmo'
+                                    }
+                                ],
+                                gas: gas.toString()
+                            },
+                            signatures: null,
+                            msg: [
+                                {
+                                    "type": "osmosis/gamm/join-pool",
+                                    "value": {
+                                        "sender": osmoAddress,
+                                        "poolId": "1",
+                                        "shareOutAmount": "402238349184328773",
+                                        "tokenInMaxs": [
+                                            {
+                                                "denom": ibcVoucherAtomOsmo,
+                                                "amount": sellAmount
+                                            },
+                                            {
+                                                "denom": "uosmo",
+                                                "amount": buyAmount
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                        const osmoAddressNList = bip32ToAddressNList("m/44'/118'/0'/0/0")
+                        unsignedTx = {
+                            tx: tx1,
+                            addressNList: osmoAddressNList,
+                            chain_id: 'osmosis-1',
+                            account_number,
+                            sequence
+                        }
+                        break
+                    default:
+                        throw Error("unhandled!: "+expr)
+                }
+                log.info(tag,"unsignedTx FINAL: ",unsignedTx)
+                return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
             }

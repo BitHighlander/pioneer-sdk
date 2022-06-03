@@ -47,8 +47,11 @@ let blockchains = [
 ]
 
 let txid:string
-let invocationId:string
+
 let IS_SIGNED: boolean
+
+// let invocationId:string
+let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
 
 const start_keepkey_controller = async function(){
     try{
@@ -127,18 +130,18 @@ const test_service = async function () {
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
-        //
+
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
         log.info(tag,"wallet: ",wallet)
 
         //init with HDwallet
-        let result = await app.init(wallet)
+        let result = await app.init()
         log.info(tag,"result: ",result)
 
         //pair wallet
-        if(!app.isPaired){
+        if(!app.isConnected){
             let resultPair = await app.pairWallet('keepkey',wallet)
             log.info(tag,"resultPair: ",resultPair)
         }
@@ -161,24 +164,88 @@ const test_service = async function () {
                 asset:OUTPUT_ASSET,
             },
             amount:TEST_AMOUNT,
-            noBroadcast:true
+            noBroadcast:false
         }
 
-        //get quote
-        let quote = await app.swapQuote(swap)
-        log.info(tag,"quote: ",quote)
+        if(!invocationId){
+            //get quote
+            let quote = await app.swapQuote(swap)
+            log.info(tag,"quote: ",quote)
+            assert(quote.invocationId)
+            log.info(tag,"quote: ",quote.invocationId)
+            invocationId = quote.invocationId
+            //get invocations
+            let invocations = await app.getInvocations()
+            log.info(tag,"invocations: ",invocations)
+            //TODO verify invocation inside
 
-        //buildSwap
-        let swapBuilt = await app.buildSwap(quote.invocationId, swap)
-        log.info(tag,"swapBuilt: ",swapBuilt)
+            let invocation = invocations.filter((e:any) => e.invocationId == quote.invocationId)[0]
+            assert(invocation)
+            // log.info(tag,"invocation: ",invocation)
 
-        //executeSwap
-        let executionResp = await app.swapExecute(swapBuilt)
-        log.info(tag,"executionResp: ",executionResp)
+            //buildSwap
+            let swapBuilt = await app.buildSwap(quote.invocationId)
+            log.info(tag,"swapBuilt: ",swapBuilt)
 
+            //executeSwap
+            let executionResp = await app.swapExecute(quote.invocationId)
+            log.info(tag,"executionResp: ",executionResp)
+        }
 
-        //fullfill swap
-        
+        /*
+            Status codes
+            -1: errored
+             0: unknown
+             1: built
+             2: broadcasted
+             3: confirmed
+             4: fullfilled (swap completed)
+         */
+        //monitor tx lifecycle
+        let isConfirmed = false
+        let isFullfilled = false
+        let fullfillmentTxid = false
+        let currentStatus
+        let statusCode = 0
+
+        //wait till confirmed
+        while(!isConfirmed){
+            log.info("check for confirmations")
+            //
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+
+            if(invocationInfo && invocationInfo.isConfirmed){
+                log.test(tag,"Confirmed!")
+                statusCode = 3
+                isConfirmed = true
+                console.timeEnd('timeToConfirmed')
+                console.time('confirm2fullfillment')
+            } else {
+                log.test(tag,"Not Confirmed!",new Date().getTime())
+            }
+
+            await sleep(3000)
+            log.info("sleep over")
+        }
+
+        while(!isFullfilled){
+            //get invocationInfo
+            await sleep(6000)
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.test(tag,"invocationInfo: ",invocationInfo.state)
+
+            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled) {
+                log.test(tag,"is fullfilled!")
+                fullfillmentTxid = invocationInfo.fullfillmentTxid
+                isFullfilled = true
+                console.timeEnd('confirm2fullfillment')
+                //get tx gas price
+            } else {
+                log.test(tag,"unfullfilled!")
+            }
+        }
+
         log.notice("****** TEST PASS ******")
         //process
         process.exit(0)
