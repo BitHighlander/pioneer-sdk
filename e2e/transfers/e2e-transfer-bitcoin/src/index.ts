@@ -141,16 +141,16 @@ const test_service = async function () {
         console.log("pubkeys: ",app.pubkeys.length)        
         console.log("balances: ",app.balances.length)
         
-        // let send = {
-        //     blockchain:BLOCKCHAIN,
-        //     asset:ASSET,
-        //     address:FAUCET_BTC_ADDRESS,
-        //     amount:TEST_AMOUNT,
-        //     noBroadcast:true
-        // }
-        //
-        // let txid = await app.sendToAddress(send)
-        // log.info(tag,"txid: ",txid)
+        let send = {
+            blockchain:BLOCKCHAIN,
+            asset:ASSET,
+            address:FAUCET_BTC_ADDRESS,
+            amount:TEST_AMOUNT,
+            noBroadcast:true
+        }
+
+        let txid = await app.sendToAddress(send)
+        log.info(tag,"txid: ",txid)
 
         log.notice("****** TEST PASS ******")
         //process

@@ -13,7 +13,11 @@ const coinSelect = require('coinselect')
 import { numberToHex } from 'web3-utils'
 let {
     xpubConvert,
-    bip32ToAddressNList
+    bip32ToAddressNList,
+    map,
+    COIN_MAP_LONG,
+    baseAmountToNative,
+    nativeToBaseAmount
 } = require('@pioneer-platform/pioneer-coins')
 
 export class TxBuilder {
@@ -180,6 +184,24 @@ export class TxBuilder {
                         unsignedTx = ethTx
                         break
                     case 'TRANSFER':
+                        if(!tx.from) throw Error("invalid TX missing from!")
+                        //asset to blockchain
+                        let blockchain = COIN_MAP_LONG[tx.asset.symbol]
+                        let transfer = {
+                            type:"transfer",
+                            blockchain:blockchain,
+                            asset:tx.asset.symbol,
+                            toAddress:tx.recipientAddress,
+                            amount:nativeToBaseAmount(tx.asset.symbol, tx.amount),
+                            pubkey: {
+                                pubkey:tx.from
+                            }
+                        }
+                        log.info(tag,"input transfer: ",transfer)
+                        let transferTx = await this.transfer(transfer)
+                        log.info(tag,"transferTx: ",transferTx)
+                        unsignedTx = transferTx
+                        break
                     case 'COSMOS':
                         throw Error("TODO")
                     default:
@@ -194,6 +216,8 @@ export class TxBuilder {
         this.transfer = async function (tx:any) {
             let tag = TAG + " | transfer | "
             try {
+                log.info(tag,"tx: ",tx)
+
                 let unsignedTx:any
                 const expr = tx.blockchain;
                 switch (expr) {
@@ -208,7 +232,11 @@ export class TxBuilder {
                         log.info(tag,"feeRateInfo: ",feeRateInfo)
 
                         //get unspent from xpub
+                        log.info(tag,"tx.pubkey: ",tx.pubkey)
                         if(!tx.pubkey.pubkey) throw Error("Failed to get pubkey!")
+                        if(tx.pubkey.pubkey.length < 10) throw Error("invalid pubkey!")
+                        //TODO validate pubkey per network
+                        log.info(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
 
                         let unspentInputs = await this.pioneer.instance.ListUnspent({network:"BTC",xpub:tx.pubkey.pubkey})
                         unspentInputs = unspentInputs.data
@@ -279,12 +307,12 @@ export class TxBuilder {
                             let inputInfo = selectedResults.inputs[i]
                             log.info(tag,"inputInfo: ",inputInfo)
                             let input = {
-                                addressNList:bip32ToAddressNList(inputInfo.path),
+                                //addressNList:bip32ToAddressNList(inputInfo.path) || '',
                                 scriptType:core.BTCInputScriptType.SpendWitness,
                                 amount:String(inputInfo.value),
                                 vout:inputInfo.vout,
                                 txid:inputInfo.txId,
-                                segwit:false,
+                                // segwit:false,
                                 hex:inputInfo.hex,
                                 tx:inputInfo.tx
                             }
@@ -301,7 +329,8 @@ export class TxBuilder {
                         // let changePath =
 
                         //use master (hack)
-                        let changeAddress = tx.pubkey.address
+                        let changeAddress = tx.pubkey.address || tx.pubkey.master
+                        if(!changeAddress) throw Error("Missing change address!!!")
                         log.info(tag,"changeAddress: ",changeAddress)
 
                         const outputsFinal:any = []
@@ -324,7 +353,8 @@ export class TxBuilder {
                                 //change
                                 let output = {
                                     address:changeAddress,
-                                    addressType:"spend",
+                                    addressNList: bip32ToAddressNList("m/44'/0'/0'/0/0"),
+                                    addressType:"change",
                                     scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value),
                                     isChange: true,

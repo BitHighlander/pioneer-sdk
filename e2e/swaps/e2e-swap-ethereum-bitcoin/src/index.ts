@@ -50,8 +50,8 @@ let txid:string
 
 let IS_SIGNED: boolean
 
-// let invocationId:string
-let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
+let invocationId:string
+// let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
 
 const start_keepkey_controller = async function(){
     try{
@@ -142,7 +142,7 @@ const test_service = async function () {
 
         //pair wallet
         if(!app.isConnected){
-            let resultPair = await app.pairWallet('keepkey',wallet)
+            let resultPair = await app.pairWallet(wallet)
             log.info(tag,"resultPair: ",resultPair)
         }
 
@@ -164,7 +164,7 @@ const test_service = async function () {
                 asset:OUTPUT_ASSET,
             },
             amount:TEST_AMOUNT,
-            noBroadcast:false
+            noBroadcast:true
         }
 
         if(!invocationId){
@@ -187,9 +187,19 @@ const test_service = async function () {
             let swapBuilt = await app.buildSwap(quote.invocationId)
             log.info(tag,"swapBuilt: ",swapBuilt)
 
+            //get invocation
+            let invocation1 = await app.getInvocation(quote.invocationId)
+            log.info(tag,"invocation1.state: ",invocation1.state)
+            assert(invocation1.stats, 'builtTx')
+
             //executeSwap
             let executionResp = await app.swapExecute(quote.invocationId)
             log.info(tag,"executionResp: ",executionResp)
+
+            //get invocation2
+            let invocation2 = await app.getInvocation(quote.invocationId)
+            log.info(tag,"invocation2.state: ",invocation1.state)
+            assert(invocation1.state, 'broadcasted')
         }
 
         /*
@@ -214,6 +224,7 @@ const test_service = async function () {
             //
             let invocationInfo = await app.getInvocation(invocationId)
             log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
 
             if(invocationInfo && invocationInfo.isConfirmed){
                 log.test(tag,"Confirmed!")

@@ -159,7 +159,7 @@ export class SDK {
                     if(isKeepKey) this.walletType = 'keepkey'
                     if(!isNative && !isKeepKey) {
                         log.info(tag,"wallet: ",wallet)
-                        throw Error("Unhandled Wallet type!")
+                        throw Error("can not init: Unhandled Wallet type!")
                     }
                     this.isConnected = true
                 }
@@ -612,7 +612,7 @@ export class SDK {
                             })
                             break;
                         case 'OSMO':
-                            if(!this.wallet.supportsOsmosis){
+                            if(this.wallet.supportsOsmosis){
                                 address = await this.wallet.osmosisGetAddress({
                                     addressNList:paths[i].addressNListMaster,
                                     coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
@@ -845,7 +845,7 @@ export class SDK {
             }
         }
         this.buildLp = async function (invocationId:string) {
-            let tag = TAG + " | buildSwap | "
+            let tag = TAG + " | buildLp | "
             try {
                 if(!invocationId) throw Error("Invalid swap! missing invocationId!")
 
@@ -988,7 +988,11 @@ export class SDK {
             let tag = TAG + " | buildSwap | "
             try {
                 if(!invocationId) throw Error("Invalid swap! missing invocationId!")
-                
+
+                //get invocation
+                let invocation = await this.getInvocation(invocationId)
+                log.info(tag,"invocation: ",invocation)
+
                 //if success
                 const transactionResponse = await this.rango.createTransaction({
                     requestId: invocationId,
@@ -997,18 +1001,21 @@ export class SDK {
                     validations: { balance: true, fee: true },
                 })
                 log.info("transactionResponse: ",transactionResponse)
-
+                if(!transactionResponse.ok){
+                    throw Error(transactionResponse.error)
+                }
                 let tx = transactionResponse.transaction
+
+                let inputAsset = invocation.invocation.swap.input.asset
+                if(!inputAsset) throw Error("invalid invocation, missing swap input asset!")
+
                 //TODO this might be jank mapping blockChain/rango to symbol!
-                tx.from = await this.getAddress(tx.blockChain)
+                tx.from = await this.getAddress(inputAsset)
                 if(!tx.from) throw Error("failed to get from address!")
 
                 let unsignedTx = await this.txBuilder.swap(tx)
                 log.info(tag,"unsignedTx: ",unsignedTx)
                 if(!unsignedTx) throw Error("failed to buildTx")
-
-                //get invocation
-                let invocation = await this.getInvocation(invocationId)
 
                 invocation.unsignedTx = unsignedTx
                 invocation.unsignedTxs = []
@@ -1064,11 +1071,19 @@ export class SDK {
                         throw Error("network not supported! type"+blockchain)
                 }
                 log.info(tag,"txSigned: ",txSigned)
+                if(!txSigned) throw Error("Failed to sign tx!")
+
+                //update invocation for signed
+
+
 
                 //get invocation
                 invocation = await this.getInvocation(invocationId)
-                invocation.txSigned = unsignedTx
+                invocation.txSigned = txSigned
                 invocation.signedTxs = [txSigned]
+
+                //update invocation
+                await this.updateInvocation(invocation)
 
                 //broadcast
                 let broadcastBodyTransfer = {
@@ -1083,7 +1098,7 @@ export class SDK {
                 log.info("resultBroadcast: ",resultBroadcastTransfer)
                 invocation.broadcast = resultBroadcastTransfer
 
-                //update invocation
+                //update invocation again with broadcast
                 await this.updateInvocation(invocation)
 
                 return invocation
