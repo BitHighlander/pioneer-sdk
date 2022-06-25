@@ -99,7 +99,7 @@ export class SDK {
     private getAddress: (asset:string) => Promise<any>;
     private sendToAddress: (tx:any) => Promise<any>;
     private swapQuote: (tx:any) => Promise<any>;
-    private buildSwap: (tx:any, swap:any) => Promise<any>;
+    private buildSwap: (invocationId:string, swap:any) => Promise<any>;
     private swapExecute: (tx:any) => Promise<any>;
     private lpQuote: (tx:any) => Promise<any>;
     private buildLp: (tx:any) => Promise<any>;
@@ -107,8 +107,11 @@ export class SDK {
     private defi: (tx:any) => Promise<any>;
     //TODO Standardize
     //build
+    private build: (tx:any) => Promise<any>;
     //sign
+    private sign: (tx:any) => Promise<any>;
     //broadcast
+    private broadcast: (tx:any) => Promise<any>;
     private updateInvocation: (tx:any) => Promise<any>;
     public deleteInvocation: (invocationId: string) => Promise<any>;
     public getInvocation: (invocationId: string) => Promise<any>;
@@ -790,6 +793,173 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
+        this.build = async function (tx:any) {
+            let tag = TAG + " | build | "
+            try {
+                if(!tx.type) throw Error("invalid buildTx payload!")
+                
+                
+                let unsignedTx:any
+                let invocation:any
+                switch(tx.type) {
+                    case 'sendToAddress':
+                        //TODO validate payload
+                        unsignedTx = await this.sendToAddress(tx.payload)
+
+                        invocation = {
+                            type:'sendToAddress',
+                            network:tx.payload.asset, //TODO move network to blockahin
+                            context:this.context,
+                            username:this.username,
+                            tx:tx.payload,
+                            unsignedTx
+                        }
+                        break;
+                    case 'swap':
+                        //TODO validate payload
+                        let quote = await this.swapQuote(tx.payload)
+                        log.info(tag,"quote: ",quote)
+                        let invocationId = quote.invocationId
+
+                        //buildTx
+                        unsignedTx = await this.buildSwap(invocationId,tx.payload)
+                        log.info(tag,"unsignedTx: ",unsignedTx)
+                        if(!unsignedTx) throw Error("Missing unsignedTx!")
+
+                        let network = tx.payload.input.asset
+                        if(!network) throw Error("missing input asset! invalid swap!")
+                        invocation = {
+                            type:'swap',
+                            network:tx.payload.input.asset, //TODO move network to blockahin
+                            context:this.context,
+                            username:this.username,
+                            swap:tx.payload,
+                            tx:quote,
+                            invocationId,
+                            unsignedTx
+                        }
+                        break;
+                    default:
+                        throw Error("Unhandled tx type! "+tx.type)
+                    // code block
+                }
+                if(!unsignedTx) throw Error("failed to create unsigned tx!")
+                if(!invocation) throw Error("failed to create invocation!")
+                
+                log.debug(tag,"invocation: ",invocation)
+                let result = await this.invoke.invoke(invocation)
+                log.info(tag,"result: ",result)
+                if(!result.invocationId) throw Error("Failed to build invocation!")
+                return result.invocationId
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.sign = async function (invocationId:any) {
+            let tag = TAG + " | sign | "
+            try {
+
+                let invocation = await this.getInvocation(invocationId)
+                log.info(tag,"invocation: ",invocation)
+
+                let blockchain = COIN_MAP_LONG[invocation.network]
+                log.info(tag,"invocation: ",invocation)
+
+                if(!invocation.unsignedTx) throw Error("Unable to sign tx! missing unsignedTx")
+                let unsignedTx = invocation.unsignedTx
+                let txSigned:any
+                switch (blockchain) {
+                    case 'bitcoin':
+                    case 'bitcoincash':
+                    case 'litecoin':
+                    case 'dogecoin':
+                        txSigned = await this.wallet.btcSignTx(unsignedTx)
+                        break;
+                    case 'ethereum':
+                        txSigned = await this.wallet.ethSignTx(unsignedTx)
+                        const txid = keccak256(txSigned.serialized).toString('hex')
+                        log.info(tag,"txid: ",txid)
+                        txSigned.txid = "0x"+txid
+                        break;
+                    case 'thorchain':
+                        txSigned = await this.wallet.thorchainSignTx(unsignedTx)
+
+                        let broadcastString = {
+                            tx:txSigned,
+                            type:"cosmos-sdk/StdTx",
+                            mode:"sync"
+                        }
+                        let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                        //TODO FIXME
+                        //txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
+
+                        txSigned.serialized = JSON.stringify(broadcastString)
+                        txSigned.serializedTx = JSON.stringify(broadcastString)
+                        //txSigned.txid = "TODO"
+
+                        break;
+                    default:
+                        throw Error("blockchain not supported! blockchain: "+blockchain)
+                }
+                log.info(tag,"txSigned: ",txSigned)
+
+                //update invocation
+                // invocation.signedTxs[txSigned]
+                //TODO migrate to multi-tx format
+                invocation.signedTx = txSigned
+
+                //update invocation
+                let resultUpdate = await this.updateInvocation(invocation)
+                log.info(tag,"resultUpdate: ",resultUpdate)
+
+                return invocation
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.broadcast = async function (broadcast:any) {
+            let tag = TAG + " | broadcast | "
+            try {
+                if(!broadcast.invocationId) throw Error("invocationId missing!")
+
+                let invocation = await this.getInvocation(broadcast.invocationId)
+    
+                if(!invocation.signedTx) throw Error("Can not broadcast before being signed!")
+                if(!invocation.network) throw Error("invalid invocation missing network!")
+
+                let broadcastPayload = invocation.signedTx.serialized || invocation.signedTx.serializedTx
+                if(!broadcastPayload) throw Error("can not find broadcastPayload!")
+
+                //broadcast
+                let broadcastBodyTransfer = {
+                    //TODO align network with blockchain strings!
+                    network:invocation.network,
+                    serialized:broadcastPayload,
+                    txid:invocation.signedTx.txid || "unknown", //TODO get txid before broadcast on all chains!
+                    invocationId: broadcast.invocationId,
+                    noBroadcast:broadcast.noBroadcast
+                }
+                let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
+                resultBroadcastTransfer = resultBroadcastTransfer.data
+                invocation.broadcast = resultBroadcastTransfer
+
+                //updated verify state
+                invocation = await this.getInvocation(broadcast.invocationId)
+
+                //update invocation again with broadcast
+                // let resultUpdate = await this.updateInvocation(invocation)
+                
+                return invocation
+            } catch (e) {
+                log.error(tag, "e: ", e)
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
         this.defi = async function (defi:any) {
             let tag = TAG + " | defi | "
             try {
@@ -983,11 +1153,6 @@ export class SDK {
                         route:bestRoute
                     }
 
-                    log.debug(tag,"invocation: ",invocation)
-                    let result = await this.invoke.invoke(invocation)
-                    if(!result) throw Error("Failed to create invocation!")
-                    log.info("result: ",result)
-
                     output = {
                         success:true,
                         invocationId:bestRoute.requestId,
@@ -1011,14 +1176,11 @@ export class SDK {
                 throw Error(e)
             }
         }
-        this.buildSwap = async function (invocationId:string) {
+        this.buildSwap = async function (invocationId:string, swap:any) {
             let tag = TAG + " | buildSwap | "
             try {
                 if(!invocationId) throw Error("Invalid swap! missing invocationId!")
-
-                //get invocation
-                let invocation = await this.getInvocation(invocationId)
-                log.info(tag,"invocation: ",invocation)
+                if(!swap) throw Error("Invalid swap! missing swap!")
 
                 //if success
                 const transactionResponse = await this.rango.createTransaction({
@@ -1033,7 +1195,7 @@ export class SDK {
                 }
                 let tx = transactionResponse.transaction
 
-                let inputAsset = invocation.invocation.swap.input.asset
+                let inputAsset = swap.input.asset
                 if(!inputAsset) throw Error("invalid invocation, missing swap input asset!")
 
                 //TODO this might be jank mapping blockChain/rango to symbol!
@@ -1042,17 +1204,8 @@ export class SDK {
 
                 let unsignedTx = await this.txBuilder.swap(tx)
                 log.info(tag,"unsignedTx: ",unsignedTx)
-                if(!unsignedTx) throw Error("failed to buildTx")
 
-                invocation.unsignedTx = unsignedTx
-                invocation.unsignedTxs = []
-                invocation.unsignedTxs.push(unsignedTx)
-                invocation.transactionResponse = transactionResponse
-
-                //update invocation
-                await this.updateInvocation(invocation)
-
-                return invocation
+                return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -1158,51 +1311,51 @@ export class SDK {
                 log.info(tag,"unsignedTx: ",unsignedTx)
                 log.info(tag,"unsignedTx: ",JSON.stringify(unsignedTx))
 
-                let txSigned:any
-                const expr = tx.blockchain;
-                switch (expr) {
-                    case 'bitcoin':
-                    case 'bitcoincash':
-                    case 'litecoin':
-                    case 'dogecoin':
-                        txSigned = await this.wallet.btcSignTx(unsignedTx)
-                        break;
-                    case 'thorchain':
-                        txSigned = await this.wallet.thorchainSignTx(unsignedTx)
-
-                        let broadcastString = {
-                            tx:txSigned,
-                            type:"cosmos-sdk/StdTx",
-                            mode:"sync"
-                        }
-                        let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
-                        //TODO FIXME
-                        //txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
-
-                        txSigned.serialized = JSON.stringify(broadcastString)
-                        txSigned.serializedTx = JSON.stringify(broadcastString)
-                        //txSigned.txid = "TODO"
-
-                        break;
-                    default:
-                        throw Error("type not supported! type"+expr)
-                }
-                log.info(tag,"txSigned: ",txSigned)
+                // let txSigned:any
+                // const expr = tx.blockchain;
+                // switch (expr) {
+                //     case 'bitcoin':
+                //     case 'bitcoincash':
+                //     case 'litecoin':
+                //     case 'dogecoin':
+                //         txSigned = await this.wallet.btcSignTx(unsignedTx)
+                //         break;
+                //     case 'thorchain':
+                //         txSigned = await this.wallet.thorchainSignTx(unsignedTx)
+                //
+                //         let broadcastString = {
+                //             tx:txSigned,
+                //             type:"cosmos-sdk/StdTx",
+                //             mode:"sync"
+                //         }
+                //         let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                //         //TODO FIXME
+                //         //txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
+                //
+                //         txSigned.serialized = JSON.stringify(broadcastString)
+                //         txSigned.serializedTx = JSON.stringify(broadcastString)
+                //         //txSigned.txid = "TODO"
+                //
+                //         break;
+                //     default:
+                //         throw Error("type not supported! type"+expr)
+                // }
+                // log.info(tag,"txSigned: ",txSigned)
                 
                 //@TODO get txid from signedTx
                 
                 //broadcast
-                if(!tx.noBroadcast){
-                    let broadcastBodyTransfer = {
-                        network:tx.asset,
-                        serialized:txSigned.serializedTx || txSigned.serialized,
-                        txid:"unknown",
-                        invocationId:"unknown"
-                    }
-                    let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
-                    console.log("resultBroadcast: ",resultBroadcastTransfer)                    
-                }
-                return txSigned
+                // if(!tx.noBroadcast){
+                //     let broadcastBodyTransfer = {
+                //         network:tx.asset,
+                //         serialized:txSigned.serializedTx || txSigned.serialized,
+                //         txid:"unknown",
+                //         invocationId:"unknown"
+                //     }
+                //     let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
+                //     console.log("resultBroadcast: ",resultBroadcastTransfer)                    
+                // }
+                return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
             }

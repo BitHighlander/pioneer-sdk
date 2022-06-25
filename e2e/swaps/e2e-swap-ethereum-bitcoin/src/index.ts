@@ -51,7 +51,7 @@ let txid:string
 let IS_SIGNED: boolean
 
 let invocationId:string
-// let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
+//let invocationId = '01f3ef7e-3577-4f13-b31b-4a1c69546d12'
 
 const start_keepkey_controller = async function(){
     try{
@@ -154,53 +154,47 @@ const test_service = async function () {
         log.info(tag,"availableInputs: ",app.availableInputs.length)
         log.info(tag,"availableOutputs: ",app.availableOutputs.length)
 
-        let swap:any = {
-            input:{
-                blockchain:BLOCKCHAIN,
-                asset:ASSET,
-            },
-            output:{
-                blockchain:BLOCKCHAIN_OUTPUT,
-                asset:OUTPUT_ASSET,
-            },
-            amount:TEST_AMOUNT,
-            noBroadcast:true
-        }
-        log.info(tag,"swap: ",swap)
+
 
         if(!invocationId){
-            //get quote
-            let quote = await app.swapQuote(swap)
-            log.info(tag,"quote: ",quote)
-            assert(quote.invocationId)
-            log.info(tag,"quote: ",quote.invocationId)
-            invocationId = quote.invocationId
-            //get invocations
-            let invocations = await app.getInvocations()
-            log.info(tag,"invocations: ",invocations)
-            //TODO verify invocation inside
 
-            let invocation = invocations.filter((e:any) => e.invocationId == quote.invocationId)[0]
-            assert(invocation)
-            // log.info(tag,"invocation: ",invocation)
+            let swap:any = {
+                input:{
+                    blockchain:BLOCKCHAIN,
+                    asset:ASSET,
+                },
+                output:{
+                    blockchain:BLOCKCHAIN_OUTPUT,
+                    asset:OUTPUT_ASSET,
+                },
+                amount:TEST_AMOUNT,
+                noBroadcast:true
+            }
+            log.info(tag,"swap: ",swap)
 
-            //buildSwap
-            let swapBuilt = await app.buildSwap(quote.invocationId)
-            log.info(tag,"swapBuilt: ",swapBuilt)
+            let tx = {
+                type:'swap',
+                payload:swap
+            }
 
-            //get invocation
-            let invocation1 = await app.getInvocation(quote.invocationId)
-            log.info(tag,"invocation1.state: ",invocation1.state)
-            assert(invocation1.stats, 'builtTx')
+            invocationId = await app.build(tx)
+            log.info(tag,"invocationId: ",invocationId)   
+            assert(invocationId)
 
-            //executeSwap
-            let executionResp = await app.swapExecute(quote.invocationId)
-            log.info(tag,"executionResp: ",executionResp)
+            //sign
+            let resultSign = await app.sign(invocationId)
+            log.info(tag,"resultSign: ",resultSign)
 
-            //get invocation2
-            let invocation2 = await app.getInvocation(quote.invocationId)
-            log.info(tag,"invocation2.state: ",invocation1.state)
-            assert(invocation1.state, 'broadcasted')
+
+            //get txid
+            let payload = {
+                noBroadcast:false,
+                sync:true,
+                invocationId
+            }
+            let resultBroadcast = await app.broadcast(payload)
+            log.info(tag,"resultBroadcast: ",resultBroadcast)
+
         }
 
         /*

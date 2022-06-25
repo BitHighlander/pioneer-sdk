@@ -124,27 +124,95 @@ const test_service = async function () {
             wss
         }
         let app = new SDK.SDK(spec,config)
-        log.info(tag,"app: ",app)
-        //
+        log.debug(tag,"app: ",app)
+
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
-        log.info(tag,"wallet: ",wallet)
+        log.debug(tag,"wallet: ",wallet)
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.info(tag,"result: ",result)
+        log.debug(tag,"result: ",result)
 
-        // let send = {
-        //     blockchain:BLOCKCHAIN,
-        //     asset:ASSET,
-        //     address:FAUCET_BTC_ADDRESS,
-        //     amount:TEST_AMOUNT,
-        //     noBroadcast:true
+        let send = {
+            blockchain:BLOCKCHAIN,
+            asset:ASSET,
+            address:FAUCET_ADDRESS,
+            amount:TEST_AMOUNT,
+            noBroadcast:true
+        }
+
+        let tx = {
+            type:'sendToAddress',
+            payload:send
+        }
+
+        let invocationId = await app.build(tx)
+        log.info(tag,"invocationId: ",invocationId)
+
+        //sign
+        let resultSign = await app.sign(invocationId)
+        log.info(tag,"resultSign: ",resultSign)
+
+        //broadcast
+        // let payload = {
+        //     noBroadcast:true,
+        //     sync:false
         // }
-        //
-        // let txid = await app.sendToAddress(send)
-        // log.info(tag,"txid: ",txid)
+
+        //get txid
+        let payload = {
+            noBroadcast:false,
+            sync:true,
+            invocationId
+        }
+        let resultBroadcast = await app.broadcast(payload)
+        log.info(tag,"resultBroadcast: ",resultBroadcast)
+
+        /*
+            Status codes
+            -1: errored
+             0: unknown
+             1: built
+             2: broadcasted
+             3: confirmed
+             4: fullfilled (swap completed)
+         */
+        //monitor tx lifecycle
+        let isConfirmed = false
+        let isFullfilled = false
+        let fullfillmentTxid = false
+        let currentStatus
+        let statusCode = 0
+
+        //wait till confirmed
+        while(!isConfirmed){
+            log.info("check for confirmations")
+            //
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+
+            if(invocationInfo.broadcast.noBroadcast){
+                log.notice(tag,"noBroadcast flag found: exiting ")
+                statusCode = 3
+                isConfirmed = true
+            }
+
+            if(invocationInfo && invocationInfo.isConfirmed){
+                log.test(tag,"Confirmed!")
+                statusCode = 3
+                isConfirmed = true
+                console.timeEnd('timeToConfirmed')
+                console.time('confirm2fullfillment')
+            } else {
+                log.test(tag,"Not Confirmed!",new Date().getTime())
+            }
+
+            await sleep(3000)
+            log.info("sleep over")
+        }
 
         log.notice("****** TEST PASS ******")
         //process

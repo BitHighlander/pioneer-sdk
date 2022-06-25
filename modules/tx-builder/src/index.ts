@@ -379,7 +379,50 @@ export class TxBuilder {
                         log.info(tag,"unsignedTx pre: ",unsignedTx)
                         break;
                     case 'ethereum':
-                        throw Error("TODO")
+                        //#TODO handle erc20
+                        log.info('EVM Tx type');
+                        //get account info
+                        let from = tx.pubkey.address
+                        if(!from) throw Error("Invalid pubkey! missing address!")
+                        let gas_limit = 80000 //TODO dynamic? lowerme?
+
+                        //get nonce
+                        let nonceRemote = await this.pioneer.instance.GetNonce(from)
+                        nonceRemote = nonceRemote.data
+
+                        //get gas price
+                        let gas_price = await this.pioneer.instance.GetGasPrice()
+                        gas_price = gas_price.data
+
+                        let nonce = nonceRemote // || override (for Replace manual Tx)
+                        if(!nonce) throw Error("unable to get nonce!")
+
+                        let value = baseAmountToNative('ETH',tx.amount)
+                        if(!value) throw Error("unable to get value!")
+                        log.info(tag,"value: ",value)
+
+                        let to = tx.toAddress
+                        if(!to) throw Error("unable to to address!")
+
+                        //sign
+                        let ethTx = {
+                            // addressNList: support.bip32ToAddressNList(masterPathEth),
+                            "addressNList":[
+                                2147483692,
+                                2147483708,
+                                2147483648,
+                                0,
+                                0
+                            ],
+                            nonce: numberToHex(nonce),
+                            gasPrice: numberToHex(gas_price),
+                            gasLimit: numberToHex(gas_limit),
+                            value:numberToHex(value),
+                            to
+                            // chainId: 1,//TODO more networks
+                        }
+
+                        unsignedTx = ethTx
                         break
                     case 'thorchain':
                         const HD_RUNE_KEYPATH="m/44'/931'/0'/0/0"
@@ -470,11 +513,11 @@ export class TxBuilder {
                 switch (expr) {
                     case 'swap':
                         txUnsigned = await this.transfer(tx)
-                        log.info(tag,"txUnsigned: DOUBLE final ",txUnsigned)
+                        log.info(tag,"txUnsigned: final ",txUnsigned)
                         break;
                     case 'transfer':
                         txUnsigned = await this.transfer(tx)
-                        log.info(tag,"txUnsigned: DOUBLE final ",txUnsigned)
+                        log.info(tag,"txUnsigned: final ",txUnsigned)
                         break;
                     default:
                         throw Error("type not supported! type"+expr)
