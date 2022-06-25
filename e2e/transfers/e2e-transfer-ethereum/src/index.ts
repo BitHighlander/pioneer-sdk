@@ -33,8 +33,6 @@ if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
-
-
 let noBroadcast = false
 
 console.log("spec: ",spec)
