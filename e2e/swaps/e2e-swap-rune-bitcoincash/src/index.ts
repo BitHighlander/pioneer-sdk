@@ -21,17 +21,17 @@ let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'ethereum'
-let BLOCKCHAIN_OUTPUT = 'bitcoin'
-let ASSET = 'ETH'
+let BLOCKCHAIN = 'thorchain'
+let BLOCKCHAIN_OUTPUT = 'bitcoincash'
+let ASSET = 'RUNE'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
-let TRADE_PAIR  = "ETH_BTC"
+let TRADE_PAIR  = "RUNE_BCH"
 let INPUT_ASSET = ASSET
-let OUTPUT_ASSET = "BTC"
+let OUTPUT_ASSET = "BCH"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")

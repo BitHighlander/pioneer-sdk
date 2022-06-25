@@ -105,7 +105,12 @@ export class SDK {
     private buildLp: (tx:any) => Promise<any>;
     // private execute: (tx:any) => Promise<any>;
     private defi: (tx:any) => Promise<any>;
+    //TODO Standardize
+    //build
+    //sign
+    //broadcast
     private updateInvocation: (tx:any) => Promise<any>;
+    public deleteInvocation: (invocationId: string) => Promise<any>;
     public getInvocation: (invocationId: string) => Promise<any>;
     public getInvocations: () => Promise<any>;
     public stopSocket: () => any;
@@ -209,13 +214,25 @@ export class SDK {
                 //TODO verify ETH address match
 
                 if(!userInfo || userInfo.error || userInfo?.balances.length === 0) {
+                    //register user empty
+                    //register
+                    // let register = {
+                    //     username:this.username,
+                    //     blockchains:this.blockchains,
+                    //     queryKey:this.queryKey,
+                    //     auth:'lol',
+                    //     provider:'lol'
+                    // }
+                    // log.debug(tag,"register payload: ",register)
+                    // let result = await this.pioneer.instance.RegisterUser(null, register)
+                    // log.debug(tag,"register user result: ",result)
+                    // result = result.data
+                    
                     //no wallets paired
                     log.info(tag, "user not registered! info: ",userInfo)
                     if(wallet){
                         await this.pairWallet(wallet)
                     }
-
-
                 } else if(userInfo.balances.length > 0) {
                     log.info(tag,"CACHE FOUND! userInfo: ",userInfo.context)
                     log.info(tag,"user pubkeys: ",userInfo.pubkeys.length)
@@ -345,6 +362,16 @@ export class SDK {
             try {
                 let result = await this.pioneer.instance.Invocations()
                 this.invocations = result.data
+                return result.data
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.deleteInvocation = async function (invocationId:string) {
+            let tag = TAG + " | deleteInvocation | "
+            try {
+                if(!invocationId) throw Error("invocationId required!")
+                let result = await this.pioneer.instance.DeleteInvocation("",{invocationId})
                 return result.data
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -734,7 +761,7 @@ export class SDK {
                 let output = ""
                 //filter by address
                 let pubkey = this.pubkeys.filter((e:any) => e.symbol === asset)[0]
-                return pubkey.address
+                return pubkey.address || pubkey.master
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -1135,7 +1162,27 @@ export class SDK {
                 const expr = tx.blockchain;
                 switch (expr) {
                     case 'bitcoin':
+                    case 'bitcoincash':
+                    case 'litecoin':
+                    case 'dogecoin':
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
+                        break;
+                    case 'thorchain':
+                        txSigned = await this.wallet.thorchainSignTx(unsignedTx)
+
+                        let broadcastString = {
+                            tx:txSigned,
+                            type:"cosmos-sdk/StdTx",
+                            mode:"sync"
+                        }
+                        let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                        //TODO FIXME
+                        //txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
+
+                        txSigned.serialized = JSON.stringify(broadcastString)
+                        txSigned.serializedTx = JSON.stringify(broadcastString)
+                        //txSigned.txid = "TODO"
+
                         break;
                     default:
                         throw Error("type not supported! type"+expr)
@@ -1148,7 +1195,7 @@ export class SDK {
                 if(!tx.noBroadcast){
                     let broadcastBodyTransfer = {
                         network:tx.asset,
-                        serialized:txSigned.serializedTx,
+                        serialized:txSigned.serializedTx || txSigned.serialized,
                         txid:"unknown",
                         invocationId:"unknown"
                     }

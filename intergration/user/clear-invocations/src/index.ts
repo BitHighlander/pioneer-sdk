@@ -9,7 +9,7 @@ require('dotenv').config({path:"./../../.env"});
 require("dotenv").config({path:'../../../.env'})
 require("dotenv").config({path:'../../../../.env'})
 
-const TAG  = " | e2e-test | "
+const TAG  = " | intergration-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
 import * as native from "@shapeshiftoss/hdwallet-native";
@@ -50,8 +50,8 @@ let txid:string
 
 let IS_SIGNED: boolean
 
-let invocationId:string
-// let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
+// let invocationId:string
+let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
 
 const start_keepkey_controller = async function(){
     try{
@@ -115,10 +115,10 @@ const test_service = async function () {
 
         //if force new user
         //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = "sdk:pair-keepkey:test-1234";
+        const queryKey = process.env['PIONEER_QUERYKEY'];
         assert(queryKey)
 
-        const username = "sdk:test-user-1234";
+        const username = process.env['PIONEER_USERNAME'];
         assert(username)
 
         let config:any = {
@@ -146,117 +146,31 @@ const test_service = async function () {
             log.info(tag,"resultPair: ",resultPair)
         }
 
+        //iterate over pubkeys
+        //verify all are valid
+        for(let i = 0; i < app.pubkeys.length; i++){
+            let pubkey = app.pubkeys[i]
+            // log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " pubkey: ",pubkey)
+            log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
+            assert(pubkey.pubkey)
+        }
+
         //get available inputs
         // assert(app.availableInputs)
         //get available outputs
         // assert(app.availableOutputs)
+        
+        for(let i = 0; i < app.invocations.length; i++){
+            
+            //delete
+            let invocation = app.invocations[i]
+            log.info(tag,"invocation: ",invocation)
+            
+            let resultDelete = await app.deleteInvocation(invocation.invocationId)
+            log.info(tag,"resultDelete: ",resultDelete)
 
-        log.info(tag,"availableInputs: ",app.availableInputs.length)
-        log.info(tag,"availableOutputs: ",app.availableOutputs.length)
-
-        let swap:any = {
-            input:{
-                blockchain:BLOCKCHAIN,
-                asset:ASSET,
-            },
-            output:{
-                blockchain:BLOCKCHAIN_OUTPUT,
-                asset:OUTPUT_ASSET,
-            },
-            amount:TEST_AMOUNT,
-            noBroadcast:true
         }
-        log.info(tag,"swap: ",swap)
-
-        if(!invocationId){
-            //get quote
-            let quote = await app.swapQuote(swap)
-            log.info(tag,"quote: ",quote)
-            assert(quote.invocationId)
-            log.info(tag,"quote: ",quote.invocationId)
-            invocationId = quote.invocationId
-            //get invocations
-            let invocations = await app.getInvocations()
-            log.info(tag,"invocations: ",invocations)
-            //TODO verify invocation inside
-
-            let invocation = invocations.filter((e:any) => e.invocationId == quote.invocationId)[0]
-            assert(invocation)
-            // log.info(tag,"invocation: ",invocation)
-
-            //buildSwap
-            let swapBuilt = await app.buildSwap(quote.invocationId)
-            log.info(tag,"swapBuilt: ",swapBuilt)
-
-            //get invocation
-            let invocation1 = await app.getInvocation(quote.invocationId)
-            log.info(tag,"invocation1.state: ",invocation1.state)
-            assert(invocation1.stats, 'builtTx')
-
-            //executeSwap
-            let executionResp = await app.swapExecute(quote.invocationId)
-            log.info(tag,"executionResp: ",executionResp)
-
-            //get invocation2
-            let invocation2 = await app.getInvocation(quote.invocationId)
-            log.info(tag,"invocation2.state: ",invocation1.state)
-            assert(invocation1.state, 'broadcasted')
-        }
-
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
-
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
-        }
-
-        while(!isFullfilled){
-            //get invocationInfo
-            await sleep(6000)
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.test(tag,"invocationInfo: ",invocationInfo.state)
-
-            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled) {
-                log.test(tag,"is fullfilled!")
-                fullfillmentTxid = invocationInfo.fullfillmentTxid
-                isFullfilled = true
-                console.timeEnd('confirm2fullfillment')
-                //get tx gas price
-            } else {
-                log.test(tag,"unfullfilled!")
-            }
-        }
+        
 
         log.notice("****** TEST PASS ******")
         //process

@@ -378,6 +378,81 @@ export class TxBuilder {
                         unsignedTx = hdwalletTxDescription
                         log.info(tag,"unsignedTx pre: ",unsignedTx)
                         break;
+                    case 'ethereum':
+                        throw Error("TODO")
+                        break
+                    case 'thorchain':
+                        const HD_RUNE_KEYPATH="m/44'/931'/0'/0/0"
+                        const RUNE_CHAIN="thorchain"
+                        const RUNE_BASE=100000000
+
+                        let amountNative = baseAmountToNative(tx.asset,tx.amount)
+                        log.info(tag,"amountNative: ",amountNative)
+
+                        //get account number
+                        let addressFrom = tx.pubkey.address
+                        log.info(tag,"addressFrom: ",addressFrom)
+                        if(!addressFrom) throw Error("Missing, addressFrom!")
+                        if(!tx.toAddress) throw Error("Missing, toAddress!")
+
+                        let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
+                        masterInfo = masterInfo.data
+                        log.debug(tag,"masterInfo: ",masterInfo.data)
+
+                        let sequence = masterInfo.result.value.sequence || 0
+                        let account_number = masterInfo.result.value.account_number
+                        sequence = parseInt(sequence)
+                        sequence = sequence.toString()
+
+                        let txType = "thorchain/MsgSend"
+                        let gas = "650000"
+                        let fee = "0"
+                        let memoThorchain = tx.memo || ""
+
+                        //sign tx
+                        let unsigned = {
+                            "fee": {
+                                "amount": [
+                                    {
+                                        "amount": fee,
+                                        "denom": "rune"
+                                    }
+                                ],
+                                "gas": gas
+                            },
+                            "memo": memoThorchain,
+                            "msg": [
+                                {
+                                    "type": txType,
+                                    "value": {
+                                        "amount": [
+                                            {
+                                                "amount": amountNative.toString(),
+                                                "denom": "rune"
+                                            }
+                                        ],
+                                        "from_address": addressFrom,
+                                        "to_address": tx.toAddress
+                                    }
+                                }
+                            ],
+                            "signatures": null
+                        }
+
+                        let	chain_id = RUNE_CHAIN
+
+                        if(!sequence) throw Error("112: Failed to get sequence")
+                        if(!account_number) account_number = 0
+
+                        let runeTx = {
+                            addressNList: bip32ToAddressNList(HD_RUNE_KEYPATH),
+                            chain_id,
+                            account_number: account_number,
+                            sequence,
+                            tx: unsigned,
+                        }
+                        unsignedTx = runeTx
+                        break
                     default:
                         throw Error("unhandled!: "+expr)
                 }
