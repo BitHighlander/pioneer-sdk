@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-sdk/sdk",
-  "version": "0.0.11",
+  "version": "1.0.0",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -36,6 +36,5 @@
     "rango-sdk": "^0.0.4",
     "typescript": "4.6.4",
     "web3-utils": "^1.7.3"
-  },
-  "devDependencies": {}
+  }
 }

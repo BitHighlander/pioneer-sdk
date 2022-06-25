@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-platform/intergration-user-clear-invocations",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -41,6 +41,5 @@
     "uuid": "^8.3.2",
     "wait-promise": "^0.4.1"
   },
-  "devDependencies": {},
   "gitHead": "54da909f74f91cd10e6161a06aa75638c147ff96"
 }
