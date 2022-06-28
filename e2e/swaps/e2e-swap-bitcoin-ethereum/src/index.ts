@@ -25,7 +25,7 @@ let BLOCKCHAIN = 'bitcoin'
 let BLOCKCHAIN_OUTPUT = 'ethereum'
 let ASSET = 'BTC'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0006"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.001"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_BTC_ADDRESS = process.env['FAUCET_BTC_ADDRESS']
@@ -155,18 +155,6 @@ const test_service = async function () {
         log.info(tag,"balances: ",app.balances.length)
         // log.debug(tag,"balances: ",app.balances)
 
-        let swap:any = {
-            input:{
-                blockchain:BLOCKCHAIN,
-                asset:ASSET,
-            },
-            output:{
-                blockchain:BLOCKCHAIN_OUTPUT,
-                asset:OUTPUT_ASSET,
-            },
-            amount:TEST_AMOUNT,
-            noBroadcast:true
-        }
         
         //balance check of input
         let balance = await app.balances.filter((e:any) => e.asset == ASSET)[0]
@@ -182,31 +170,44 @@ const test_service = async function () {
         //calculate max balance
 
         if(!invocationId){
+            let swap:any = {
+                input:{
+                    blockchain:BLOCKCHAIN,
+                    asset:ASSET,
+                },
+                output:{
+                    blockchain:BLOCKCHAIN_OUTPUT,
+                    asset:OUTPUT_ASSET,
+                },
+                amount:TEST_AMOUNT,
+                noBroadcast:true
+            }
+            log.info(tag,"swap: ",swap)
+
+            let tx = {
+                type:'swap',
+                payload:swap
+            }
+
             log.notice(tag,"CHECKPOINT0: pre-buildTx")
-            //get quote
-            let quote = await app.swapQuote(swap)
-            log.info(tag,"quote: ",quote)
-            assert(quote.invocationId)
-            log.info(tag,"quote: ",quote.invocationId)
-            invocationId = quote.invocationId
-            //get invocations
-            let invocations = await app.getInvocations()
-            log.info(tag,"invocations: ",invocations.length)
-            //TODO verify invocation inside
 
-            let invocation = invocations.filter((e:any) => e.invocationId == quote.invocationId)[0]
-            assert(invocation)
-            log.info(tag,"invocation: ",invocation)
+            invocationId = await app.build(tx)
+            log.info(tag,"invocationId: ",invocationId)
+            assert(invocationId)
 
-            log.notice(tag,"CHECKPOINT:  buildTx")
+            //sign
+            let resultSign = await app.sign(invocationId)
+            log.info(tag,"resultSign: ",resultSign)
 
-            //buildSwap
-            let swapBuilt = await app.buildSwap(quote.invocationId)
-            log.info(tag,"swapBuilt: ",swapBuilt)
 
-            //executeSwap
-            let executionResp = await app.swapExecute(quote.invocationId)
-            log.info(tag,"executionResp: ",executionResp)
+            //get txid
+            let payload = {
+                noBroadcast:false,
+                sync:true,
+                invocationId
+            }
+            let resultBroadcast = await app.broadcast(payload)
+            log.info(tag,"resultBroadcast: ",resultBroadcast)
         }
 
 

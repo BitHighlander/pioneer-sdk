@@ -193,9 +193,10 @@ export class TxBuilder {
                             asset:tx.asset.symbol,
                             toAddress:tx.recipientAddress,
                             amount:nativeToBaseAmount(tx.asset.symbol, tx.amount),
-                            pubkey: {
+                            from: {
                                 pubkey:tx.from
-                            }
+                            },
+                            pubkey: tx.pubkey
                         }
                         log.info(tag,"input transfer: ",transfer)
                         let transferTx = await this.transfer(transfer)
@@ -237,15 +238,18 @@ export class TxBuilder {
                         if(tx.pubkey.pubkey.length < 10) throw Error("invalid pubkey!")
                         //TODO validate pubkey per network
                         log.info(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
-
+                        
+                        log.info(tag,"pioneer: ",this.pioneer.instance)
+                        log.info(tag,"tx.pubkey.pubkey: ",tx)
                         let unspentInputs = await this.pioneer.instance.ListUnspent({network:"BTC",xpub:tx.pubkey.pubkey})
                         unspentInputs = unspentInputs.data
-                        log.info(tag,"unspentInputs: ",unspentInputs)
+                        log.info(tag,"***** WTF unspentInputs: ",unspentInputs)
 
                         //prepaire coinselect
                         let utxos = []
                         for(let i = 0; i < unspentInputs.length; i++){
                             let input = unspentInputs[i]
+                            if(!input.path) throw Error("Invalid ListUnspent reponse! missing path!")
                             let utxo = {
                                 txId:input.txid,
                                 vout:input.vout,
@@ -306,15 +310,21 @@ export class TxBuilder {
                             //get input info
                             let inputInfo = selectedResults.inputs[i]
                             log.info(tag,"inputInfo: ",inputInfo)
+                            if(!inputInfo.path) throw Error("failed to get path for input!")
                             let input = {
-                                //addressNList:bip32ToAddressNList(inputInfo.path) || '',
-                                scriptType:core.BTCInputScriptType.SpendWitness,
+                                addressNList:bip32ToAddressNList(inputInfo.path) || '',
+                                scriptType:"p2wpkh",
+                                // scriptType:core.BTCInputScriptType.SpendAddress,
+                                // scriptType:core.BTCInputScriptType.SpendP2SHWitness,
+                                // scriptType:core.BTCInputScriptType.SpendAddress,
+                                // scriptType:core.BTCInputScriptType.SpendWitness,
                                 amount:String(inputInfo.value),
                                 vout:inputInfo.vout,
                                 txid:inputInfo.txId,
+                                // segwit:true,
                                 // segwit:false,
                                 hex:inputInfo.hex,
-                                tx:inputInfo.tx
+                                // tx:inputInfo.tx
                             }
                             inputs.push(input)
                         }
@@ -329,9 +339,10 @@ export class TxBuilder {
                         // let changePath =
 
                         //use master (hack)
+                        log.info(tag,"tx.pubkey: ",tx.pubkey)
                         let changeAddress = tx.pubkey.address || tx.pubkey.master
                         if(!changeAddress) throw Error("Missing change address!!!")
-                        log.info(tag,"changeAddress: ",changeAddress)
+                        log.info(tag,"*** changeAddress: ",changeAddress)
 
                         const outputsFinal:any = []
                         log.info(tag,"selectedResults.outputs: ",selectedResults.outputs)
@@ -344,22 +355,22 @@ export class TxBuilder {
                                 let output = {
                                     address:toAddress,
                                     addressType:"spend",
-                                    scriptType:core.BTCInputScriptType.SpendWitness,
-                                    amount:String(outputInfo.value),
-                                    isChange: false,
+                                    // scriptType:core.BTCInputScriptType.SpendWitness,
+                                    amount:String(outputInfo.value)
                                 }
                                 if(output.address)outputsFinal.push(output)
                             } else {
                                 //change
                                 let output = {
-                                    address:changeAddress,
+                                    // address:changeAddress,
+                                    //TODO move this to last not used
                                     addressNList: bip32ToAddressNList("m/44'/0'/0'/0/0"),
                                     addressType:"change",
                                     scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value),
                                     isChange: true,
                                 }
-                                if(output.address)outputsFinal.push(output)
+                                if(output.addressNList)outputsFinal.push(output)
                             }
                             log.info(tag,i,"outputsFinal: ",outputsFinal)
                         }
@@ -377,6 +388,7 @@ export class TxBuilder {
                         log.info(tag,"hdwalletTxDescription: ",hdwalletTxDescription)
                         unsignedTx = hdwalletTxDescription
                         log.info(tag,"unsignedTx pre: ",unsignedTx)
+                        log.info(tag,"*** unsignedTx pre: ",JSON.stringify(unsignedTx))
                         break;
                     case 'ethereum':
                         //#TODO handle erc20

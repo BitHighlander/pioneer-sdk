@@ -147,9 +147,9 @@ const test_service = async function () {
         }
 
         //get available inputs
-        // assert(app.availableInputs)
+        assert(app.availableInputs)
         //get available outputs
-        // assert(app.availableOutputs)
+        assert(app.availableOutputs)
 
         log.info(tag,"availableInputs: ",app.availableInputs.length)
         log.info(tag,"availableOutputs: ",app.availableOutputs.length)

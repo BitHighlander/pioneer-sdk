@@ -120,32 +120,64 @@ const test_service = async function () {
 
         const username = process.env['PIONEER_USERNAME'];
         assert(username)
-
+        
+        //add custom path
+        let paths:any = [
+            {
+                note:"Bitcoin account Native Segwit (Bech32)",
+                blockchain: 'bitcoin',
+                symbol: 'BTC',
+                network: 'BTC',
+                script_type:"p2wpkh", //bech32
+                available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
+                type:"zpub",
+                addressNList: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0],
+                addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
+                curve: 'secp256k1',
+                showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
+            }
+        ]
+        
         let config:any = {
             blockchains,
             username,
             queryKey,
             spec,
-            wss
+            wss,
+            paths
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
+
+        //verify paths
+        log.info(tag,"paths: ",app.paths.length)
+        log.info(tag,"paths: ",app.paths)
 
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
         log.info(tag,"wallet: ",wallet)
 
-        //init with HDwallet
+
+
+        // //init with HDwallet
         let result = await app.init()
         log.info(tag,"result: ",result)
+
 
         //pair wallet
         if(!app.isConnected){
             let resultPair = await app.pairWallet(wallet)
-            log.info(tag,"resultPair: ",resultPair)
+            // log.info(tag,"resultPair: ",resultPair)
         }
 
+
+        log.info(tag,"pubkeys: ",app.pubkeys.length)
+        
+        //expect
+        //xpub
+        //zpub6rLj8yHs3mXRYSGNBSbajrkwghwLtpZLJf16q8bETA2mhZsMQdcPhXE4QQJAkQMAv8wpVeZYWqm3V45zzyAYS7exCugndVv8F8PmGfBTC5i
+        
         //iterate over pubkeys
         //verify all are valid
         for(let i = 0; i < app.pubkeys.length; i++){
@@ -154,6 +186,16 @@ const test_service = async function () {
             log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
             assert(pubkey.pubkey)
         }
+        
+        //
+        let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
+        log.info("bitcoinPubkeys: ",bitcoinPubkeys)
+
+
+        let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
+        log.info("bitcoinBalances: ",bitcoinBalances)
+
+        //Test remote objects
         //get available inputs
         // assert(app.availableInputs)
         //get available outputs

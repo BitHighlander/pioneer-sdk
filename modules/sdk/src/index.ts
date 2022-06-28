@@ -71,11 +71,12 @@ export class SDK {
     public assetBalanceNativeContext: string;
     public invoke: any;
     private wss: any;
-    private username: any;
-    private queryKey: any;
-    private spec: any;
+    public username: any;
+    public queryKey: any;
+    public spec: any;
     private wallet: any;
     private walletType: string;
+    public paths: any;
     private pubkeys: any;
     private keyring: any;
     private device: any;
@@ -126,7 +127,10 @@ export class SDK {
         this.username = config.username // or generate?
         this.queryKey = config.queryKey // or generate?
         this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
+        // this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
         this.rangoApiKey = config.rangoApiKey || '4a624ab5-16ff-4f96-90b7-ab00ddfc342c'
+        //combine custom with default paths
+        this.paths = [...config.paths, ...getPaths(this.blockchains)];
         this.pubkeys = []
         this.markets = {}
         this.events = {}
@@ -182,6 +186,7 @@ export class SDK {
 
                 //init tx builder
                 log.info(tag,"TxBuilder.TxBuilder: ",TxBuilder)
+                log.info(tag,"TxBuilder.TxBuilder config: ",config)
                 this.txBuilder = new TxBuilder.TxBuilder(this.pioneer, config)
                 log.info(tag,"txBuilder: ",this.txBuilder)
 
@@ -243,7 +248,9 @@ export class SDK {
 
                     //get available inputs (blockchains with balances)
                     this.availableInputs = userInfo.balances
-                    this.availableOutputs = this.markets.popularTokens
+                    if(this.markets && this.markets.popularTokens){
+                        this.availableOutputs = this.markets.popularTokens
+                    }
                     log.info(tag,"this.availableInputs: ",this.availableInputs)
                     log.info(tag,"this.availableOutputs: ",this.availableOutputs)
                     // for(let i = 0; i < userInfo.balances.length; i++){
@@ -496,7 +503,13 @@ export class SDK {
                 if(!this.blockchains) throw Error("blockchains not set!")
 
                 //get paths for blockchains
-                let paths = getPaths(this.blockchains)
+                // let paths = getPaths(this.blockchains)
+                // //combine with local paths
+                // this.paths = [...this.paths, ...getPaths(this.blockchains)];
+                
+                let paths = this.paths
+                log.info(tag,"paths: ",paths)
+
                 if(!paths || paths.length === 0) throw Error("Failed to get paths!")
                 //verify paths
                 for(let i = 0; i < this.blockchains.length; i++){
@@ -631,7 +644,6 @@ export class SDK {
                                 scriptType: paths[i].script_type,
                                 showDisplay: false
                             })
-
                             break;
                         case 'ATOM':
                             address = await this.wallet.cosmosGetAddress({
@@ -820,6 +832,13 @@ export class SDK {
                         let quote = await this.swapQuote(tx.payload)
                         log.info(tag,"quote: ",quote)
                         let invocationId = quote.invocationId
+
+                        //handle error
+                        if(!quote.success){
+                            //verbose error handling
+                            log.error(tag,"verbose error: ",JSON.stringify(quote))
+                            throw Error("Failed to Create quote! unable to find a swap route! try again later.")
+                        }
 
                         //buildTx
                         unsignedTx = await this.buildSwap(invocationId,tx.payload)
@@ -1137,7 +1156,7 @@ export class SDK {
                 }
 
                 let output
-                if(bestRoute){
+                if(bestRoute && bestRoute.result && bestRoute.result.outputAmount){
                     if(!bestRoute.requestId) throw Error("failed to make swap request!")
                     if(!bestRoute.result.outputAmount) throw Error("failed to make quote!")
                     //expiration (time needed until accepted)
@@ -1163,9 +1182,12 @@ export class SDK {
                         swaps:bestRoute.result.swaps
                     }
                 } else {
+                    log.error(tag,"Failed to create quote!")
                     output = {
                         success:false,
-                        error
+                        error,
+                        response:bestRoute,
+                        rangoBody:body
                     }
                 }
 
@@ -1197,10 +1219,18 @@ export class SDK {
 
                 let inputAsset = swap.input.asset
                 if(!inputAsset) throw Error("invalid invocation, missing swap input asset!")
-
-                //TODO this might be jank mapping blockChain/rango to symbol!
-                tx.from = await this.getAddress(inputAsset)
-                if(!tx.from) throw Error("failed to get from address!")
+                
+                //if UTXO
+                if(tx.type === 'TRANSFER'){
+                    tx.pubkey = await this.getPubkey(inputAsset)
+                    if(!tx.pubkey) throw Error("failed to get pubkey!")
+                    tx.from = await this.getAddress(inputAsset)
+                    if(!tx.from) throw Error("failed to get from address!")
+                }else{
+                    //@TODO this might be jank mapping blockChain/rango to symbol!
+                    tx.from = await this.getAddress(inputAsset)
+                    if(!tx.from) throw Error("failed to get from address!")
+                }
 
                 let unsignedTx = await this.txBuilder.swap(tx)
                 log.info(tag,"unsignedTx: ",unsignedTx)
@@ -1295,7 +1325,28 @@ export class SDK {
                 //TODO validate address
                 //TODO check balance
                 if(!tx.asset) throw Error("Invalid tx! missing asset")
-
+                
+                //TODO balance check
+                
+                //for all pubkeys
+                
+                //get balance
+                let balances = this.balances.filter((e:any) => e.symbol === tx.asset)[0]
+                log.info(tag,"*** balances: ",balances)
+                
+                //balances
+                if(balances.length === 0){
+                    throw Error("No balance found for asset! asset"+tx.asset)
+                } else if(balances.length === 1){
+                    log.info(tag,"assume from is only balance")
+                    
+                }else if(balances.length > 1){
+                    log.info(tag,"select larges balance")
+                    //select largest balance
+                    //let largest = 
+                }
+                
+                
                 //transferTx
                 let transferTx = {
                     type:"transfer",
@@ -1311,50 +1362,6 @@ export class SDK {
                 log.info(tag,"unsignedTx: ",unsignedTx)
                 log.info(tag,"unsignedTx: ",JSON.stringify(unsignedTx))
 
-                // let txSigned:any
-                // const expr = tx.blockchain;
-                // switch (expr) {
-                //     case 'bitcoin':
-                //     case 'bitcoincash':
-                //     case 'litecoin':
-                //     case 'dogecoin':
-                //         txSigned = await this.wallet.btcSignTx(unsignedTx)
-                //         break;
-                //     case 'thorchain':
-                //         txSigned = await this.wallet.thorchainSignTx(unsignedTx)
-                //
-                //         let broadcastString = {
-                //             tx:txSigned,
-                //             type:"cosmos-sdk/StdTx",
-                //             mode:"sync"
-                //         }
-                //         let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
-                //         //TODO FIXME
-                //         //txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
-                //
-                //         txSigned.serialized = JSON.stringify(broadcastString)
-                //         txSigned.serializedTx = JSON.stringify(broadcastString)
-                //         //txSigned.txid = "TODO"
-                //
-                //         break;
-                //     default:
-                //         throw Error("type not supported! type"+expr)
-                // }
-                // log.info(tag,"txSigned: ",txSigned)
-                
-                //@TODO get txid from signedTx
-                
-                //broadcast
-                // if(!tx.noBroadcast){
-                //     let broadcastBodyTransfer = {
-                //         network:tx.asset,
-                //         serialized:txSigned.serializedTx || txSigned.serialized,
-                //         txid:"unknown",
-                //         invocationId:"unknown"
-                //     }
-                //     let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
-                //     console.log("resultBroadcast: ",resultBroadcastTransfer)                    
-                // }
                 return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)

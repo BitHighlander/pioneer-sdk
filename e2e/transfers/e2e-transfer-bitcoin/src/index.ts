@@ -116,16 +116,34 @@ const test_service = async function () {
         const username = "sdk:test-user-1234";
         assert(username)
 
+        //add custom path
+        let paths:any = [
+            {
+                note:"Bitcoin account Native Segwit (Bech32)",
+                blockchain: 'bitcoin',
+                symbol: 'BTC',
+                network: 'BTC',
+                script_type:"p2wpkh", //bech32
+                available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
+                type:"zpub",
+                addressNList: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0],
+                addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
+                curve: 'secp256k1',
+                showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
+            }
+        ]
+
         let config:any = {
             blockchains,
             username,
             queryKey,
             spec,
+            paths,
             wss
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
-        //
+
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
@@ -145,12 +163,30 @@ const test_service = async function () {
             blockchain:BLOCKCHAIN,
             asset:ASSET,
             address:FAUCET_BTC_ADDRESS,
-            amount:TEST_AMOUNT,
-            noBroadcast:true
+            amount:TEST_AMOUNT
         }
 
-        let txid = await app.sendToAddress(send)
-        log.info(tag,"txid: ",txid)
+        let tx = {
+            type:'sendToAddress',
+            payload:send
+        }
+        
+        let invocationId = await app.build(tx)
+        log.info(tag,"invocationId: ",invocationId)
+        
+        //signTx
+        let resultSign = await app.sign(invocationId)
+        log.info(tag,"resultSign: ",resultSign)
+        //
+        // //get txid
+        // let payload = {
+        //     noBroadcast:true,
+        //     sync:true,
+        //     invocationId
+        // }
+        // let resultBroadcast = await app.broadcast(payload)
+        // log.info(tag,"resultBroadcast: ",resultBroadcast)
+
 
         log.notice("****** TEST PASS ******")
         //process
