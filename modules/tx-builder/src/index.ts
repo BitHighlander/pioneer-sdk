@@ -8,9 +8,11 @@
 const TAG = " | tx-builder | "
 const log = require("@pioneer-platform/loggerdog")()
 import * as core from "@shapeshiftoss/hdwallet-core";
+// @ts-ignore
 import split from 'coinselect/split'
 //requires
 const coinSelect = require('coinselect')
+let BigNumber = require('@ethersproject/bignumber')
 
 import { numberToHex } from 'web3-utils'
 let {
@@ -187,7 +189,7 @@ export class TxBuilder {
                         if(!tx.from) throw Error("invalid TX missing from!")
                         //asset to blockchain
                         let blockchain = COIN_MAP_LONG[tx.asset.symbol]
-                        let transfer = {
+                        let transfer:any = {
                             type:"transfer",
                             blockchain:blockchain,
                             asset:tx.asset.symbol,
@@ -198,6 +200,7 @@ export class TxBuilder {
                             },
                             pubkey: tx.pubkey
                         }
+                        if(tx.memo) transfer.memo = tx.memo
                         log.debug(tag,"input transfer: ",transfer)
                         let transferTx = await this.transfer(transfer)
                         log.debug(tag,"transferTx: ",transferTx)
@@ -250,6 +253,8 @@ export class TxBuilder {
                         for(let i = 0; i < unspentInputs.length; i++){
                             let input = unspentInputs[i]
                             if(!input.path) throw Error("Invalid ListUnspent reponse! missing path!")
+                            //@TODO use 84/44 based on pubkey (note:blockbook can not know what path a pubkey was on is assumed)
+                            //input.path = input.path.replace("84","44")
                             let utxo = {
                                 txId:input.txid,
                                 vout:input.vout,
@@ -261,7 +266,7 @@ export class TxBuilder {
                             }
                             utxos.push(utxo)
                         }
-
+                        log.info(tag,"utxos: ",utxos)
                         //if no utxo's
                         if (utxos.length === 0){
                             throw Error("101 YOUR BROKE! no UTXO's found! ")
@@ -286,11 +291,13 @@ export class TxBuilder {
                         if(tx.memo) {
                             memo = tx.memo
                         }
+                        log.info(tag,"memo: ",memo)
 
                         //
                         let selectedResults
                         let targets
-                        if(tx.amount.toUpperCase() === 'MAX'){
+                        log.info(tag,"tx.amount: ",tx.amount)
+                        if(tx.amount && typeof(tx.amount) === 'string' && tx.amount === 'MAX'){
                             targets = [
                                 {
                                     address:toAddress
@@ -403,11 +410,13 @@ export class TxBuilder {
                                 }
                                 outputsFinal.push(output)
                             } else {
-                                //change
+                                // if(!tx.pubkey.pathMaster) throw Error("Invalid pubkey! missing pathMaster!")
                                 let output = {
                                     // address:changeAddress,
-                                    //TODO move this to last not used
-                                    addressNList: bip32ToAddressNList("m/44'/0'/0'/0/0"),
+                                    //@TODO move this to last not used
+                                    //@TODO FOR THE LOVE GOD CHANGE THIS PER PUBKEY USED!
+                                    // addressNList: bip32ToAddressNList(tx.pubkey.pathMaster),
+                                    addressNList: bip32ToAddressNList("m/84'/0'/0'/0/0"),
                                     addressType:"change",
                                     scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value),
@@ -431,6 +440,7 @@ export class TxBuilder {
                             }
                             log.debug(tag,"hdwalletTxDescription: ",hdwalletTxDescription)
                             if(memo) hdwalletTxDescription.opReturnData = memo
+                            log.info(tag,"memo: ",memo)
                             unsignedTx = hdwalletTxDescription
                             log.debug(tag,"unsignedTx pre: ",unsignedTx)
                             log.debug(tag,"*** unsignedTx pre: ",JSON.stringify(unsignedTx))
@@ -457,9 +467,31 @@ export class TxBuilder {
                         let nonce = nonceRemote // || override (for Replace manual Tx)
                         if(!nonce) throw Error("unable to get nonce!")
 
-                        let value = baseAmountToNative('ETH',tx.amount)
-                        if(!value) throw Error("unable to get value!")
-                        log.debug(tag,"value: ",value)
+                        let value
+                        //if amount = max
+                        if(tx.amount === 'MAX'){
+                            let ethBalance = await this.pioneer.instance.GetPubkeyBalance({asset:'ETH',pubkey:from})
+                            log.debug(tag,"ethBalance: ",ethBalance)
+
+                            let ethBalanceBase = nativeToBaseAmount(ethBalance)
+                            log.info(tag,"ethBalanceBase: ",ethBalanceBase)
+
+                            let transfer_cost = 21001
+                            gas_limit = 21000
+                            
+                            let txFee = new BigNumber(gas_price).times(transfer_cost)
+                            log.info(tag,"txFee: ",txFee)
+                            log.info(tag,"txFee: ",txFee.toString())
+
+                            let amount = ethBalance.minus(txFee)
+                            log.info(tag,"amount ALL: ",amount)
+                            value = amount
+
+                        }else{
+                            value = baseAmountToNative('ETH',tx.amount)
+                            if(!value) throw Error("unable to get value!")
+                            log.debug(tag,"value: ",value)
+                        }
 
                         let to = tx.toAddress
                         if(!to) throw Error("unable to to address!")

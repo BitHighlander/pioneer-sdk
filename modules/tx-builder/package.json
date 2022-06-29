@@ -20,6 +20,7 @@
     "clean": "rm -rf coverage src/**/*.js src/**/*.map lib node_modules"
   },
   "dependencies": {
+    "@ethersproject/bignumber": "^5.6.2",
     "@pioneer-platform/pioneer-coins": "^8.1.43",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",
     "@types/google-protobuf": "^3.15.6",

@@ -77,6 +77,7 @@ export class SDK {
     public spec: any;
     private wallet: any;
     private walletType: string;
+
     public paths: any;
     private pubkeys: any;
     private keyring: any;
@@ -92,6 +93,7 @@ export class SDK {
     private isConnected: boolean;
     private context: string;
     private init: (tx: any, options: any, asset: string) => Promise<void>;
+    public refresh: (invocationId: string) => Promise<any>;
     public pairWallet: (wallet: any) => Promise<any>;
     private removePin: () => Promise<any>;
     private startSocket: () => Promise<any>;
@@ -357,6 +359,15 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
+        this.refresh = async function () {
+            let tag = TAG + " | refresh | "
+            try {
+                let result = await this.pioneer.instance.Refresh()
+                return result.data
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
         this.getInvocation = async function (invocationId:string) {
             let tag = TAG + " | getInvocations | "
             try {
@@ -609,7 +620,8 @@ export class SDK {
                     normalized.symbol = pubkey.symbol
                     normalized.blockchain = COIN_MAP_LONG[pubkey.symbol]
                     normalized.network = COIN_MAP_LONG[pubkey.symbol]
-                    //normalized.path = addressNListToBIP32(pubkey.addressNList)
+                    normalized.path = addressNListToBIP32(pubkey.addressNList)
+                    normalized.pathMaster = addressNListToBIP32(pubkey.addressNListMaster)
 
                     //get master address
                     let address
@@ -773,10 +785,29 @@ export class SDK {
         this.getAddress = async function (asset:string) {
             let tag = TAG + " | getAddress | "
             try {
-                let output = ""
-                //filter by address
-                let pubkey = this.pubkeys.filter((e:any) => e.symbol === asset)[0]
-                return pubkey.address || pubkey.master
+                let pubkeys = this.pubkeys.filter((e:any) => e.symbol === asset)
+                log.info(tag,"pubkeys: ",pubkeys)
+                let selected
+                let selectedBalance = 0
+                if(pubkeys.length === 1){
+                    selected = pubkeys[0]
+                } else if(pubkeys.length > 1) {
+                    //check balances
+                    for(let i = 0; i < pubkeys.length; i++){
+                        let pubkey = pubkeys[i]
+                        let balance = this.balances.filter((e:any) => e.pubkey === pubkey.pubkey)[0]
+
+                        //get balance on pubkey
+                        log.info(tag,"balance: ",balance)
+                        log.info(tag,"balance: ",balance.balance)
+                        if(balance.balance > selectedBalance){
+                            selectedBalance = balance.balance
+                            selected = pubkey
+                        }
+                    }
+                }
+
+                return selected.address || selected.master
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -791,11 +822,23 @@ export class SDK {
                 let pubkeys = this.pubkeys.filter((e:any) => e.symbol === asset)
 
                 let selected
+                let selectedBalance = 0
                 if(pubkeys.length === 1){
                     selected = pubkeys[0]
-                } else {
-                    //TODO prefure largest balance?
-                    selected = pubkeys[0]
+                } else if(pubkeys.length > 1) {
+                    //check balances
+                    for(let i = 0; i < pubkeys.length; i++){
+                        let pubkey = pubkeys[i]
+                        let balance = this.balances.filter((e:any) => e.pubkey === pubkey.pubkey)[0]
+
+                        //get balance on pubkey
+                        log.info(tag,"balance: ",balance)
+                        log.info(tag,"balance: ",balance.balance)
+                        if(balance.balance > selectedBalance){
+                            selectedBalance = balance.balance
+                            selected = pubkey
+                        }
+                    }
                 }
 
                 return selected
@@ -879,8 +922,9 @@ export class SDK {
                         invocation = await this.getInvocation(invocationId)
                         invocation.unsignedTx = unsignedTx
                         log.debug(tag,"***** unsignedTx: ",unsignedTx)
+
                         //update invocation again with unsignedTx
-                        // await this.updateInvocation(invocation)
+                        await this.updateInvocation(invocation)
 
                         let network = tx.payload.input.asset
                         if(!network) throw Error("missing input asset! invalid swap!")
@@ -921,7 +965,7 @@ export class SDK {
                     case 'bitcoincash':
                     case 'litecoin':
                     case 'dogecoin':
-                        log.debug(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
+                        log.info(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
                         break;
                     case 'ethereum':
@@ -1140,42 +1184,16 @@ export class SDK {
 
                 //get addys
                 let inputAddress = await this.getAddress(swap.input.asset)
-                log.debug(tag,"inputAddress: ",inputAddress)
-                
-                //check balance
-                let balances = this.balances.filter((e:any) => e.symbol === swap.input.asset)
-                log.debug(tag,"*** balances: ",balances)
+                if(!inputAddress) throw Error("failed to get address for input!")
+                log.info(tag,"inputAddress: ",inputAddress)
 
-                //balances
-                if(balances.length === 0){
-                    throw Error("No balance found for asset! asset"+swap.input.asset)
-                } else if(balances.length === 1){
-                    log.debug(tag,"assume from is only balance")
-                    if (swap.amount >= balances[0].balance) throw Error("Balance lower then swap amount!")
-                }else if(balances.length > 1){
-                    log.debug(tag,"select largest balance")
-                    //select largest balance
-                    let spendable = []
-                    for(let i = 0; i < balances.length; i++){
-                        let balance = balances[i]
-                        if(balance.balance > swap.amount) {
-                            spendable.push(balance)
-                        }
-                    }
-                    if(spendable.length === 0){
-                       throw Error("No balances available to fund swap!")
-                    } else if(spendable.length === 1){
-                        inputAddress = spendable[0].address
-                    } else if(spendable.length > 1){
-                        inputAddress = spendable[0].master
-                        // inputAddress = spendable[1].master
-                        // throw Error("TODO code preference selection! prefer segwit")
-                    }
-                }
+                //check balance
+                // let inputAddress = await this.getBalance(swap.input.asset)
+                // log.debug(tag,"inputAddress: ",inputAddress)
+
                 log.debug(tag,"*** inputAddress: ",inputAddress)
 
                 let outputAddress = await this.getAddress(swap.output.asset)
-                if(!inputAddress) throw Error("failed to get address for input!")
                 if(!outputAddress) throw Error("failed to get address for output!")
 
                 //@TODO validate blockchains convert to rango blockchain! better
@@ -1209,7 +1227,7 @@ export class SDK {
                     to,
                 }
                 log.debug("rango body: ",body)
-                log.debug("rango body: ",JSON.stringify(body))
+                log.info("rango body: ",JSON.stringify(body))
                 let bestRoute
                 let error
                 try{
@@ -1277,7 +1295,7 @@ export class SDK {
                     userSettings: { 'slippage': '1' },
                     validations: { balance: true, fee: true },
                 })
-                log.debug("transactionResponse: ",transactionResponse)
+                log.info("transactionResponse: ",transactionResponse)
                 if(!transactionResponse.ok){
                     throw Error(transactionResponse.error)
                 }
@@ -1292,14 +1310,16 @@ export class SDK {
                     if(!tx.pubkey) throw Error("failed to get pubkey!")
                     tx.from = await this.getAddress(inputAsset)
                     if(!tx.from) throw Error("failed to get from address!")
+                    tx.memo = transactionResponse.transaction.memo
                 }else{
                     //@TODO this might be jank mapping blockChain/rango to symbol!
                     tx.from = await this.getAddress(inputAsset)
                     if(!tx.from) throw Error("failed to get from address!")
                 }
 
+                log.info(tag,"buildSwap tx: ",tx)
                 let unsignedTx = await this.txBuilder.swap(tx)
-                log.debug(tag,"unsignedTx: ",unsignedTx)
+                log.info(tag,"unsignedTx: ",unsignedTx)
 
                 return unsignedTx
             } catch (e) {

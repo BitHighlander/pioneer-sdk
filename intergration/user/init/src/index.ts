@@ -135,6 +135,19 @@ const test_service = async function () {
                 addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
                 curve: 'secp256k1',
                 showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
+            },
+            {
+                note:"Bitcoin account Native Segwit (Bech32) on WRONG path (extraction)",
+                blockchain: 'bitcoin',
+                symbol: 'BTC',
+                network: 'BTC',
+                script_type:"p2wpkh", //bech32
+                available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
+                type:"zpub",
+                addressNList: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0],
+                addressNListMaster: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
+                curve: 'secp256k1',
+                showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
             }
         ]
         
@@ -177,7 +190,7 @@ const test_service = async function () {
         //expect
         //xpub
         //zpub6rLj8yHs3mXRYSGNBSbajrkwghwLtpZLJf16q8bETA2mhZsMQdcPhXE4QQJAkQMAv8wpVeZYWqm3V45zzyAYS7exCugndVv8F8PmGfBTC5i
-        
+
         //iterate over pubkeys
         //verify all are valid
         for(let i = 0; i < app.pubkeys.length; i++){
@@ -186,14 +199,45 @@ const test_service = async function () {
             log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
             assert(pubkey.pubkey)
         }
-        
+
+        // let ethPubkeys = app.pubkeys.filter((e:any) => e.symbol === "ETH")
+        // log.info("ethPubkeys: ",ethPubkeys)
         //
+        //
+        // let ethBalances = app.balances.filter((e:any) => e.symbol === "ETH")
+        // log.info("ethBalances: ",ethBalances)
+        // log.info("ethBalances: ",ethBalances[0].balance)
+
+        //update
+        let refreshResult = await app.refresh()
+        log.info("refreshResult: ",refreshResult)
+
+        let refreshUpdate = await app.updateContext()
+        // log.info("refreshUpdate: ",refreshUpdate)
+        //
+        // // let ethBalances2 = app.balances.filter((e:any) => e.symbol === "ETH")
+        // // // log.info("ethBalances: ",ethBalances)
+        // // log.info("ethBalances2: ",ethBalances2[0].balance)
+        //
+
         let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
         log.info("bitcoinPubkeys: ",bitcoinPubkeys)
 
 
         let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
         log.info("bitcoinBalances: ",bitcoinBalances)
+
+        //get prefured pubkey
+        let preferedPubkey = await app.getPubkey('BTC')
+        log.info("preferedPubkey: ",preferedPubkey)
+
+        //get balance (aggrate)
+        // let preferedPubkey = app.getBalance('BTC')
+        // log.info("preferedPubkey: ",preferedPubkey)
+
+        //get address (of primary)
+        let preferredAddy = await app.getAddress('BTC')
+        log.info("preferredAddy: ",preferredAddy)
 
         //Test remote objects
         //get available inputs

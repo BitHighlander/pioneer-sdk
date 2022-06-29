@@ -166,6 +166,12 @@ const test_service = async function () {
             log.info(tag,"resultPair: ",resultPair)
         }
 
+        //update
+        let refreshResult = await app.refresh()
+        log.info("refreshResult: ",refreshResult)
+
+        let refreshUpdate = await app.updateContext()
+
         //get available inputs
         // assert(app.availableInputs)
         //get available outputs
@@ -175,9 +181,12 @@ const test_service = async function () {
         log.info(tag,"balances: ",app.balances.length)
         // log.debug(tag,"balances: ",app.balances)
 
-        
-        //balance check of input
-        let balance = await app.balances.filter((e:any) => e.asset == ASSET)[0]
+        //get addy
+        let preferedPubkey = await app.getPubkey('BTC')
+        log.info("preferedPubkey: ",preferedPubkey)
+
+        //balance check of addy
+        let balance = await app.balances.filter((e:any) => e.pubkey == preferedPubkey.pubkey)[0]
         log.info(tag,"(check) balance: ",balance.balance)
         log.info(tag,"(check) balance: ",balance)
         assert(balance)

@@ -25,7 +25,7 @@ let BLOCKCHAIN = 'ethereum'
 let BLOCKCHAIN_OUTPUT = 'bitcoin'
 let ASSET = 'ETH'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "MAX"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
@@ -182,19 +182,19 @@ const test_service = async function () {
             log.info(tag,"invocationId: ",invocationId)   
             assert(invocationId)
 
-            // //sign
-            // let resultSign = await app.sign(invocationId)
-            // log.info(tag,"resultSign: ",resultSign)
-            //
-            //
-            // //get txid
-            // let payload = {
-            //     noBroadcast:false,
-            //     sync:true,
-            //     invocationId
-            // }
-            // let resultBroadcast = await app.broadcast(payload)
-            // log.info(tag,"resultBroadcast: ",resultBroadcast)
+            //sign
+            let resultSign = await app.sign(invocationId)
+            log.info(tag,"resultSign: ",resultSign)
+
+
+            //get txid
+            let payload = {
+                noBroadcast:false,
+                sync:true,
+                invocationId
+            }
+            let resultBroadcast = await app.broadcast(payload)
+            log.info(tag,"resultBroadcast: ",resultBroadcast)
 
         }
 
