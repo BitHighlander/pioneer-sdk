@@ -46,7 +46,8 @@ let TxBuilder = require('@pioneer-sdk/tx-builder')
 const Events = require("@pioneer-platform/pioneer-events")
 let Invoke = require("@pioneer-platform/pioneer-invoke")
 // import * as core from "@shapeshiftoss/hdwallet-core";
-
+let wait = require('wait-promise');
+let sleep = wait.sleep;
 
 export class SDK {
     public events: any;
@@ -101,7 +102,6 @@ export class SDK {
     private sendToAddress: (tx:any) => Promise<any>;
     private swapQuote: (tx:any) => Promise<any>;
     private buildSwap: (invocationId:string, swap:any) => Promise<any>;
-    private swapExecute: (tx:any) => Promise<any>;
     private lpQuote: (tx:any) => Promise<any>;
     private buildLp: (tx:any) => Promise<any>;
     // private execute: (tx:any) => Promise<any>;
@@ -170,7 +170,7 @@ export class SDK {
                     if(isNative) this.walletType = 'native'
                     if(isKeepKey) this.walletType = 'keepkey'
                     if(!isNative && !isKeepKey) {
-                        log.info(tag,"wallet: ",wallet)
+                        log.debug(tag,"wallet: ",wallet)
                         throw Error("can not init: Unhandled Wallet type!")
                     }
                     this.isConnected = true
@@ -185,10 +185,10 @@ export class SDK {
                 this.rango = new RangoClient(this.rangoApiKey)
 
                 //init tx builder
-                log.info(tag,"TxBuilder.TxBuilder: ",TxBuilder)
-                log.info(tag,"TxBuilder.TxBuilder config: ",config)
+                log.debug(tag,"TxBuilder.TxBuilder: ",TxBuilder)
+                log.debug(tag,"TxBuilder.TxBuilder config: ",config)
                 this.txBuilder = new TxBuilder.TxBuilder(this.pioneer, config)
-                log.info(tag,"txBuilder: ",this.txBuilder)
+                log.debug(tag,"txBuilder: ",this.txBuilder)
 
                 //init invoker
                 let configInvoke = {
@@ -203,7 +203,7 @@ export class SDK {
                 //get health from server
                 let health = await this.pioneer.instance.Health()
                 if(!health.data.online) throw Error("Pioneer Server offline!")
-                log.info(tag,"pioneer health: ",health.data)
+                log.debug(tag,"pioneer health: ",health.data)
 
                 //get status from server
                 let status = await this.pioneer.instance.Status()
@@ -217,7 +217,7 @@ export class SDK {
                 let userInfo = await this.pioneer.instance.User()
                 userInfo = userInfo.data
                 this.user = userInfo
-                log.info(tag,"user: ",userInfo)
+                log.debug(tag,"user: ",userInfo)
 
                 //TODO verify ETH address match
 
@@ -237,30 +237,30 @@ export class SDK {
                     // result = result.data
                     
                     //no wallets paired
-                    log.info(tag, "user not registered! info: ",userInfo)
+                    log.debug(tag, "user not registered! info: ",userInfo)
                     if(wallet){
                         await this.pairWallet(wallet)
                     }
                 } else if(userInfo.balances.length > 0) {
-                    log.info(tag,"CACHE FOUND! userInfo: ",userInfo.context)
-                    log.info(tag,"user pubkeys: ",userInfo.pubkeys.length)
-                    log.info(tag,"user balances: ",userInfo.balances.length)
+                    log.debug(tag,"CACHE FOUND! userInfo: ",userInfo.context)
+                    log.debug(tag,"user pubkeys: ",userInfo.pubkeys.length)
+                    log.debug(tag,"user balances: ",userInfo.balances.length)
 
                     //get available inputs (blockchains with balances)
                     this.availableInputs = userInfo.balances
                     if(this.markets && this.markets.popularTokens){
                         this.availableOutputs = this.markets.popularTokens
                     }
-                    log.info(tag,"this.availableInputs: ",this.availableInputs)
-                    log.info(tag,"this.availableOutputs: ",this.availableOutputs)
+                    log.debug(tag,"this.availableInputs: ",this.availableInputs)
+                    log.debug(tag,"this.availableOutputs: ",this.availableOutputs)
                     // for(let i = 0; i < userInfo.balances.length; i++){
                     //     let balance = userInfo.balances[i]
                     //     // if value > 5$
-                    //     log.info(tag,"balance: ",balance)
+                    //     log.debug(tag,"balance: ",balance)
                     //
                     //     //get info from markets
                     //     let marketInfo = this.markets.tokens.filter((e:any) => e.symbol === balance.symbol)[0]
-                    //     log.info(tag,"marketInfo: ",marketInfo)
+                    //     log.debug(tag,"marketInfo: ",marketInfo)
                     // }
 
                     //this.isPaired = true
@@ -298,7 +298,7 @@ export class SDK {
                     if(isNative) this.walletType = 'native'
                     if(isKeepKey) this.walletType = 'keepkey'
                     if(!isNative && !isKeepKey) {
-                        log.info(tag,"wallet: ",wallet)
+                        log.debug(tag,"wallet: ",wallet)
                         throw Error("can not pair! Unhandled Wallet type!")
                     }
                     this.isConnected = true
@@ -411,7 +411,7 @@ export class SDK {
                     this.updateContext()
                     this.events.pair(this.username)
 
-                    log.info(tag,"EVENT type: ",event.type)
+                    log.debug(tag,"EVENT type: ",event.type)
 
                 });
 
@@ -422,7 +422,7 @@ export class SDK {
                     this.updateContext()
                     this.events.pair(this.username)
 
-                    log.info(tag,"EVENT type: ",event.type)
+                    log.debug(tag,"EVENT type: ",event.type)
 
                 });
 
@@ -433,25 +433,25 @@ export class SDK {
                 });
 
                 this.events.events.on('pubkey', (event:any) => {
-                    log.info(tag,"pubkey event!", event)
+                    log.debug(tag,"pubkey event!", event)
                     //update pubkeys
                 });
 
                 this.events.events.on('balances', (event:any) => {
-                    log.info(tag,"balances event!", event)
+                    log.debug(tag,"balances event!", event)
                 });
 
                 //onSign
                 this.events.events.on('invocations', async (event:any) => {
-                    log.info("invocation: ",event)
+                    // log.debug("invocation: ",event)
                     switch(event.type) {
                         case 'update':
                             break;
                         case 'signRequest':
-                            log.info("signRequest: ",event.invocation.unsignedTx)
+                            log.debug("signRequest: ",event.invocation.unsignedTx)
                             break;
                         default:
-                            log.info(tag,"unhandled: ",event.type)
+                            log.debug(tag,"unhandled: ",event.type)
                     }
                 });
 
@@ -475,7 +475,7 @@ export class SDK {
                 //get info
                 let userInfo = await this.pioneer.instance.User()
                 userInfo = userInfo.data
-                log.info(tag,"userInfo: ",userInfo)
+                log.debug(tag,"userInfo: ",userInfo)
 
                 if(userInfo.username)this.username = userInfo.username
                 if(userInfo.context)this.context = userInfo.context
@@ -497,8 +497,8 @@ export class SDK {
             let tag = TAG + " | getPubkeys | "
             try {
                 let output:any = {}
-                log.info(tag,"checkpoint")
-                log.info(tag,"this.wallet: ",this.wallet)
+                log.debug(tag,"checkpoint")
+                log.debug(tag,"this.wallet: ",this.wallet)
                 if(!this.wallet) throw Error("can not get pubkeys! Wallet not init!")
                 if(!this.blockchains) throw Error("blockchains not set!")
 
@@ -508,14 +508,14 @@ export class SDK {
                 // this.paths = [...this.paths, ...getPaths(this.blockchains)];
                 
                 let paths = this.paths
-                log.info(tag,"paths: ",paths)
+                log.debug(tag,"paths: ",paths)
 
                 if(!paths || paths.length === 0) throw Error("Failed to get paths!")
                 //verify paths
                 for(let i = 0; i < this.blockchains.length; i++){
                     let blockchain = this.blockchains[i]
                     let symbol = getNativeAssetForBlockchain(blockchain)
-                    log.info(tag,"symbol: ",symbol)
+                    log.debug(tag,"symbol: ",symbol)
                     //find in pubkeys
                     let isFound = paths.find((path: { blockchain: string; }) => {
                         return path.blockchain === blockchain
@@ -525,7 +525,7 @@ export class SDK {
                     }
                 }
 
-                log.info(tag,"Is keepkey, format pubkeys")
+                log.debug(tag,"Is keepkey, format pubkeys")
                 let pathsKeepkey:any = []
                 for(let i = 0; i < paths.length; i++){
                     let path = paths[i]
@@ -541,8 +541,8 @@ export class SDK {
                     pathsKeepkey.push(pathForKeepkey)
                 }
 
-                log.info("***** paths IN: ",pathsKeepkey.length)
-                log.info("***** paths IN: ",pathsKeepkey)
+                log.debug("***** paths IN: ",pathsKeepkey.length)
+                log.debug("***** paths IN: ",pathsKeepkey)
 
                 //verify paths for each enabled blockchain
                 for(let i = 0; i < this.blockchains.length; i++){
@@ -559,17 +559,17 @@ export class SDK {
                 }
 
                 //this.wallet
-                log.info(tag,"this.wallet: ",this.wallet)
+                log.debug(tag,"this.wallet: ",this.wallet)
                 let result = await this.wallet.getPublicKeys(pathsKeepkey)
                 // if(this.walletType === 'keepkey'){
                 //     result = await this.wallet.getPublicKeys(pathsKeepkey)
                 // } else if(this.walletType === 'native'){
-                //     log.info(tag,"pathsKeepkey: ",pathsKeepkey )
+                //     log.debug(tag,"pathsKeepkey: ",pathsKeepkey )
                 //     result = await this.wallet.getPublicKeys(pathsKeepkey)
                 // } else {
                 //     throw Error("unhandled wallet")
                 // }
-                log.info(tag,"result: ",result)
+                log.debug(tag,"result: ",result)
                 if(!result) throw Error("failed to get pubkeys!")
 
 
@@ -592,12 +592,12 @@ export class SDK {
                     if(pubkey.type === 'zpub'){
                         normalized.type = 'zpub'
                         normalized.zpub = true
-                        log.info(tag,"xpub: ",result[i].xpub)
+                        log.debug(tag,"xpub: ",result[i].xpub)
                         if(!result[i].xpub) throw Error("Missing xpub")
 
                         //convert to zpub
                         let zpub = await xpubConvert(result[i].xpub,'zpub')
-                        log.info(tag,"zpub: ",result[i].xpub)
+                        log.debug(tag,"zpub: ",result[i].xpub)
                         normalized.pubkey = zpub
                         pubkey.pubkey = zpub
                     }
@@ -613,7 +613,7 @@ export class SDK {
 
                     //get master address
                     let address
-                    log.info(tag,"symbol: ",pubkey.symbol)
+                    log.debug(tag,"symbol: ",pubkey.symbol)
                     switch(pubkey.symbol) {
                         case 'BTC':
                         case 'BCH':
@@ -627,7 +627,7 @@ export class SDK {
                                 showDisplay: false
                             })
 
-                            log.info(tag,"address: ",address)
+                            log.debug(tag,"address: ",address)
                             break;
                         case 'ETH':
                             address = await this.wallet.ethGetAddress({
@@ -679,7 +679,7 @@ export class SDK {
                             throw Error("coin not yet implemented ! coin: "+pubkey.symbol)
                         // code block
                     }
-                    log.info(tag,"address: ",address)
+                    log.debug(tag,"address: ",address)
                     if(!address){
                         log.error("Failed to get address for pubkey: ",pubkey)
                         throw Error("address master required for valid pubkey")
@@ -695,7 +695,7 @@ export class SDK {
                     pubkeys.push(normalized)
                     this.pubkeys.push(normalized)
                 }
-                log.info(tag,"pubkeys:",pubkeys)
+                log.debug(tag,"pubkeys:",pubkeys)
                 output.pubkeys = pubkeys
                 this.pubkeys = pubkeys
                 if(pubkeys.length !== result.length) {
@@ -788,8 +788,17 @@ export class SDK {
             try {
                 let output = ""
                 //filter by address
-                let pubkey = this.pubkeys.filter((e:any) => e.symbol === asset)[0]
-                return pubkey
+                let pubkeys = this.pubkeys.filter((e:any) => e.symbol === asset)
+
+                let selected
+                if(pubkeys.length === 1){
+                    selected = pubkeys[0]
+                } else {
+                    //TODO prefure largest balance?
+                    selected = pubkeys[0]
+                }
+
+                return selected
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -813,10 +822,13 @@ export class SDK {
                 
                 let unsignedTx:any
                 let invocation:any
+                let result:any
                 switch(tx.type) {
                     case 'sendToAddress':
                         //TODO validate payload
                         unsignedTx = await this.sendToAddress(tx.payload)
+
+
 
                         invocation = {
                             type:'sendToAddress',
@@ -826,11 +838,15 @@ export class SDK {
                             tx:tx.payload,
                             unsignedTx
                         }
+                        log.debug(tag,"Save sendToAddress invocation: ",invocation)
+                        log.debug(tag,"Save sendToAddress invocation: ",JSON.stringify(invocation))
+                        result = await this.invoke.invoke(invocation)
+                        log.debug(tag,"result: ",result)
                         break;
                     case 'swap':
                         //TODO validate payload
                         let quote = await this.swapQuote(tx.payload)
-                        log.info(tag,"quote: ",quote)
+                        log.debug(tag,"quote: ",quote)
                         let invocationId = quote.invocationId
 
                         //handle error
@@ -839,14 +855,7 @@ export class SDK {
                             log.error(tag,"verbose error: ",JSON.stringify(quote))
                             throw Error("Failed to Create quote! unable to find a swap route! try again later.")
                         }
-
-                        //buildTx
-                        unsignedTx = await this.buildSwap(invocationId,tx.payload)
-                        log.info(tag,"unsignedTx: ",unsignedTx)
-                        if(!unsignedTx) throw Error("Missing unsignedTx!")
-
-                        let network = tx.payload.input.asset
-                        if(!network) throw Error("missing input asset! invalid swap!")
+                        log.debug(tag,"result: ",result)
                         invocation = {
                             type:'swap',
                             network:tx.payload.input.asset, //TODO move network to blockahin
@@ -854,9 +863,28 @@ export class SDK {
                             username:this.username,
                             swap:tx.payload,
                             tx:quote,
-                            invocationId,
-                            unsignedTx
+                            invocationId
                         }
+                        log.debug(tag,"invocation: ",invocation)
+                        result = await this.invoke.invoke(invocation)
+                        log.debug(tag,"result: ",result)
+                        
+                        await sleep(3000)
+                        //buildTx
+                        unsignedTx = await this.buildSwap(invocationId,tx.payload)
+                        log.debug(tag,"pre lookup unsignedTx: ",unsignedTx)
+                        if(!unsignedTx) throw Error("Missing unsignedTx!")
+
+                        //update unsignedTx
+                        invocation = await this.getInvocation(invocationId)
+                        invocation.unsignedTx = unsignedTx
+                        log.debug(tag,"***** unsignedTx: ",unsignedTx)
+                        //update invocation again with unsignedTx
+                        // await this.updateInvocation(invocation)
+
+                        let network = tx.payload.input.asset
+                        if(!network) throw Error("missing input asset! invalid swap!")
+
                         break;
                     default:
                         throw Error("Unhandled tx type! "+tx.type)
@@ -866,8 +894,6 @@ export class SDK {
                 if(!invocation) throw Error("failed to create invocation!")
                 
                 log.debug(tag,"invocation: ",invocation)
-                let result = await this.invoke.invoke(invocation)
-                log.info(tag,"result: ",result)
                 if(!result.invocationId) throw Error("Failed to build invocation!")
                 return result.invocationId
             } catch (e) {
@@ -881,10 +907,11 @@ export class SDK {
             try {
 
                 let invocation = await this.getInvocation(invocationId)
-                log.info(tag,"invocation: ",invocation)
+                log.debug(tag,"invocation: ",invocation)
+                log.debug(tag,"*** invocation: ",JSON.stringify(invocation))
 
                 let blockchain = COIN_MAP_LONG[invocation.network]
-                log.info(tag,"invocation: ",invocation)
+                log.debug(tag,"invocation: ",invocation)
 
                 if(!invocation.unsignedTx) throw Error("Unable to sign tx! missing unsignedTx")
                 let unsignedTx = invocation.unsignedTx
@@ -894,12 +921,13 @@ export class SDK {
                     case 'bitcoincash':
                     case 'litecoin':
                     case 'dogecoin':
+                        log.debug(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
                         break;
                     case 'ethereum':
                         txSigned = await this.wallet.ethSignTx(unsignedTx)
                         const txid = keccak256(txSigned.serialized).toString('hex')
-                        log.info(tag,"txid: ",txid)
+                        log.debug(tag,"txid: ",txid)
                         txSigned.txid = "0x"+txid
                         break;
                     case 'thorchain':
@@ -922,7 +950,7 @@ export class SDK {
                     default:
                         throw Error("blockchain not supported! blockchain: "+blockchain)
                 }
-                log.info(tag,"txSigned: ",txSigned)
+                log.debug(tag,"txSigned: ",txSigned)
 
                 //update invocation
                 // invocation.signedTxs[txSigned]
@@ -931,7 +959,7 @@ export class SDK {
 
                 //update invocation
                 let resultUpdate = await this.updateInvocation(invocation)
-                log.info(tag,"resultUpdate: ",resultUpdate)
+                log.debug(tag,"resultUpdate: ",resultUpdate)
 
                 return invocation
             } catch (e) {
@@ -965,7 +993,9 @@ export class SDK {
                 let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
                 resultBroadcastTransfer = resultBroadcastTransfer.data
                 invocation.broadcast = resultBroadcastTransfer
-
+                
+                //if 
+                
                 //updated verify state
                 invocation = await this.getInvocation(broadcast.invocationId)
 
@@ -1014,15 +1044,15 @@ export class SDK {
 
                 //TODO handle amount Max
 
-                log.info(tag,"lp: ",lp)
-                log.info(tag,"lp: ",{pair:lp.pair,amountIn:lp.amountIn})
+                log.debug(tag,"lp: ",lp)
+                log.debug(tag,"lp: ",{pair:lp.pair,amountIn:lp.amountIn})
                 // osmosis
                 if(lp.leg1.blockchain === 'osmosis'){
                     lp.protocol = 'osmosis'
                     //get quote for out
                     let swapQuote = await this.pioneer.instance.QuoteSwap({pair:lp.pair,amountIn:lp.amountLeg1})
                     swapQuote = swapQuote.data
-                    log.info(tag,"swapQuote: ",swapQuote)
+                    log.debug(tag,"swapQuote: ",swapQuote)
                     lp.amountLeg2 = swapQuote.buyAmount
                 } else {
                     throw Error("not supported input!")
@@ -1045,7 +1075,7 @@ export class SDK {
                 log.debug(tag,"invocation: ",invocation)
                 let result = await this.invoke.invoke(invocation)
                 if(!result) throw Error("Failed to create invocation!")
-                log.info("result: ",result)
+                log.debug("result: ",result)
 
                 let output = {
                     success:true,
@@ -1067,7 +1097,7 @@ export class SDK {
 
                 //get invocation
                 let invocation = await this.getInvocation(invocationId)
-                log.info(tag,"invocation: ",invocation)
+                log.debug(tag,"invocation: ",invocation)
 
                 let lp = invocation.invocation.lp
                 if(!lp) throw Error("invalid invocation! missing lp object")
@@ -1077,7 +1107,7 @@ export class SDK {
                 if(lp.leg1.blockchain === 'osmosis'){
                     lp.from = await this.getAddress(lp.leg1.asset)
                     unsignedTx = await this.txBuilder.lp(lp)
-                    log.info(tag,"unsignedTx: ",unsignedTx)
+                    log.debug(tag,"unsignedTx: ",unsignedTx)
                     if(!unsignedTx) throw Error("failed to buildTx")
                 } else {
                     throw Error("not supported input!")
@@ -1110,6 +1140,40 @@ export class SDK {
 
                 //get addys
                 let inputAddress = await this.getAddress(swap.input.asset)
+                log.debug(tag,"inputAddress: ",inputAddress)
+                
+                //check balance
+                let balances = this.balances.filter((e:any) => e.symbol === swap.input.asset)
+                log.debug(tag,"*** balances: ",balances)
+
+                //balances
+                if(balances.length === 0){
+                    throw Error("No balance found for asset! asset"+swap.input.asset)
+                } else if(balances.length === 1){
+                    log.debug(tag,"assume from is only balance")
+                    if (swap.amount >= balances[0].balance) throw Error("Balance lower then swap amount!")
+                }else if(balances.length > 1){
+                    log.debug(tag,"select largest balance")
+                    //select largest balance
+                    let spendable = []
+                    for(let i = 0; i < balances.length; i++){
+                        let balance = balances[i]
+                        if(balance.balance > swap.amount) {
+                            spendable.push(balance)
+                        }
+                    }
+                    if(spendable.length === 0){
+                       throw Error("No balances available to fund swap!")
+                    } else if(spendable.length === 1){
+                        inputAddress = spendable[0].address
+                    } else if(spendable.length > 1){
+                        inputAddress = spendable[0].master
+                        // inputAddress = spendable[1].master
+                        // throw Error("TODO code preference selection! prefer segwit")
+                    }
+                }
+                log.debug(tag,"*** inputAddress: ",inputAddress)
+
                 let outputAddress = await this.getAddress(swap.output.asset)
                 if(!inputAddress) throw Error("failed to get address for input!")
                 if(!outputAddress) throw Error("failed to get address for output!")
@@ -1127,8 +1191,8 @@ export class SDK {
                     [inputBlockchainRango]:inputAddress,
                     [outputBlockchainRango]:outputAddress
                 }
-                log.info(tag,"connectedWallets: ",connectedWallets)
-                log.info(tag,"selectedWallets: ",selectedWallets)
+                log.debug(tag,"connectedWallets: ",connectedWallets)
+                log.debug(tag,"selectedWallets: ",selectedWallets)
 
                 //TODO handle token addresses
                 const from = {blockchain: inputBlockchainRango, symbol: swap.input.asset, address: null}
@@ -1144,14 +1208,16 @@ export class SDK {
                     from,
                     to,
                 }
-                log.info("rango body: ",body)
+                log.debug("rango body: ",body)
+                log.debug("rango body: ",JSON.stringify(body))
                 let bestRoute
                 let error
                 try{
+                    //body = {"from":{"blockchain":"BTC","symbol":"BTC","address":null},"to":{"blockchain":"ETH","symbol":"ETH","address":null},"amount":"0.0012","connectedWallets":[{"blockchain":"BTC","addresses":["bc1qmk55wxuruezgv0yxqrgnvlwdts3g02nmt58vjf"]},{"blockchain":"LTC","addresses":["ltc1qpmu3c2c9693q66qc7genedxfz9h77gnhfww920"]},{"blockchain":"THOR","addresses":["thor1atev7k3xzsqsenrwjht3k3r70t9mtz0p58qn6d"]},{"blockchain":"BCH","addresses":["qqh080jjpqn4qtew4lt2rk5ul6zwd9lx7y9w2htqqw"]},{"blockchain":"BNB","addresses":["bnb1qyljuasqcmmjznyuqd64mwjlamn22g5shr3twk"]},{"blockchain":"ETH","addresses":["0x5b7FFe740E19F442Eb333d68d999cb509a42d6D0"]},{"blockchain":"POLYGON","addresses":["0x5b7FFe740E19F442Eb333d68d999cb509a42d6D0"]},{"blockchain":"BSC","addresses":["0x5b7FFe740E19F442Eb333d68d999cb509a42d6D0"]}],"selectedWallets":{},"checkPrerequisites":false,"affiliateRef":null}
                     bestRoute = await this.rango.getBestRoute(body)
-                    log.info("bestRoute: ",bestRoute)
+                    log.debug("bestRoute: ",bestRoute)
                 }catch(e){
-                    log.info(tag,"e: ",e)
+                    log.debug(tag,"e: ",e)
                     error = e
                 }
 
@@ -1162,15 +1228,15 @@ export class SDK {
                     //expiration (time needed until accepted)
                     let duration
                     //create invocation
-                    let invocation:any = {
-                        type:'swap',
-                        network:COIN_MAP[swap.input.blockchain],
-                        context:this.context,
-                        username:this.username,
-                        invocationId:bestRoute.requestId,
-                        swap,
-                        route:bestRoute
-                    }
+                    // let invocation:any = {
+                    //     type:'swap',
+                    //     network:COIN_MAP[swap.input.blockchain],
+                    //     context:this.context,
+                    //     username:this.username,
+                    //     invocationId:bestRoute.requestId,
+                    //     swap,
+                    //     route:bestRoute
+                    // }
 
                     output = {
                         success:true,
@@ -1211,7 +1277,7 @@ export class SDK {
                     userSettings: { 'slippage': '1' },
                     validations: { balance: true, fee: true },
                 })
-                log.info("transactionResponse: ",transactionResponse)
+                log.debug("transactionResponse: ",transactionResponse)
                 if(!transactionResponse.ok){
                     throw Error(transactionResponse.error)
                 }
@@ -1233,85 +1299,9 @@ export class SDK {
                 }
 
                 let unsignedTx = await this.txBuilder.swap(tx)
-                log.info(tag,"unsignedTx: ",unsignedTx)
+                log.debug(tag,"unsignedTx: ",unsignedTx)
 
                 return unsignedTx
-            } catch (e) {
-                log.error(tag, "e: ", e)
-                // @ts-ignore
-                throw Error(e)
-            }
-        }
-        this.swapExecute = async function (invocationId:any) {
-            let tag = TAG + " | swapExecute | "
-            try {
-                //TODO connect status by wallet context
-                if(!this.isConnected) throw Error("Wallet not connected!")
-
-                //get invocation
-                let invocation = await this.getInvocation(invocationId)
-                log.info(tag,"invocation: ",invocation)
-
-
-                //TODO add all tx's to queue
-
-                //check status of swap
-
-                //if not signed/sign
-                //TODO handle multiple txs
-                let unsignedTx = invocation.unsignedTx
-
-                let txSigned:any
-                //TODO get this from the tx itself?
-                const blockchain = invocation.invocation.swap.input.blockchain;
-                log.info(tag,"blockchain: ",blockchain)
-
-                switch (blockchain) {
-                    case 'ethereum':
-                        txSigned = await this.wallet.ethSignTx(unsignedTx)
-                        const txid = keccak256(txSigned.serialized).toString('hex')
-                        log.info(tag,"txid: ",txid)
-                        txSigned.txid = txid
-
-                        break;
-                    case 'bitcoin':
-                        txSigned = await this.wallet.btcSignTx(unsignedTx)
-                        break;
-                    default:
-                        throw Error("network not supported! type"+blockchain)
-                }
-                log.info(tag,"txSigned: ",txSigned)
-                if(!txSigned) throw Error("Failed to sign tx!")
-
-                //update invocation for signed
-
-
-
-                //get invocation
-                invocation = await this.getInvocation(invocationId)
-                invocation.txSigned = txSigned
-                invocation.signedTxs = [txSigned]
-
-                //update invocation
-                await this.updateInvocation(invocation)
-
-                //broadcast
-                let broadcastBodyTransfer = {
-                    //TODO align network with blockchain strings!
-                    network:COIN_MAP[blockchain],
-                    serialized:txSigned.serializedTx || txSigned.serialized,
-                    txid:"unknown", //TODO get txid before broadcast on all chains!
-                    invocationId,
-                    noBroadcast:invocation.noBroadcast
-                }
-                let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
-                log.info("resultBroadcast: ",resultBroadcastTransfer)
-                invocation.broadcast = resultBroadcastTransfer
-
-                //update invocation again with broadcast
-                await this.updateInvocation(invocation)
-
-                return invocation
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -1332,16 +1322,15 @@ export class SDK {
                 
                 //get balance
                 let balances = this.balances.filter((e:any) => e.symbol === tx.asset)[0]
-                log.info(tag,"*** balances: ",balances)
+                log.debug(tag,"*** balances: ",balances)
                 
                 //balances
                 if(balances.length === 0){
                     throw Error("No balance found for asset! asset"+tx.asset)
                 } else if(balances.length === 1){
-                    log.info(tag,"assume from is only balance")
-                    
+                    log.debug(tag,"assume from is only balance")
                 }else if(balances.length > 1){
-                    log.info(tag,"select larges balance")
+                    log.debug(tag,"select larges balance")
                     //select largest balance
                     //let largest = 
                 }
@@ -1358,9 +1347,12 @@ export class SDK {
                 }
                 
                 //unsignedTx
+                log.debug(tag,"transferTx: ",transferTx)
                 let unsignedTx = await this.txBuilder.buildTx(transferTx)
-                log.info(tag,"unsignedTx: ",unsignedTx)
-                log.info(tag,"unsignedTx: ",JSON.stringify(unsignedTx))
+                log.debug(tag,"unsignedTx: ",unsignedTx)
+                log.info(tag,"pre lookup unsignedTx: ",JSON.stringify(unsignedTx))
+
+                //
 
                 return unsignedTx
             } catch (e) {

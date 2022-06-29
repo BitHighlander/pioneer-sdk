@@ -126,6 +126,7 @@ const test_service = async function () {
             username,
             queryKey,
             spec,
+            paths:[],
             wss
         }
         let app = new SDK.SDK(spec,config)
@@ -181,19 +182,19 @@ const test_service = async function () {
             log.info(tag,"invocationId: ",invocationId)   
             assert(invocationId)
 
-            //sign
-            let resultSign = await app.sign(invocationId)
-            log.info(tag,"resultSign: ",resultSign)
-
-
-            //get txid
-            let payload = {
-                noBroadcast:false,
-                sync:true,
-                invocationId
-            }
-            let resultBroadcast = await app.broadcast(payload)
-            log.info(tag,"resultBroadcast: ",resultBroadcast)
+            // //sign
+            // let resultSign = await app.sign(invocationId)
+            // log.info(tag,"resultSign: ",resultSign)
+            //
+            //
+            // //get txid
+            // let payload = {
+            //     noBroadcast:false,
+            //     sync:true,
+            //     invocationId
+            // }
+            // let resultBroadcast = await app.broadcast(payload)
+            // log.info(tag,"resultBroadcast: ",resultBroadcast)
 
         }
 

@@ -8,8 +8,10 @@
 const TAG = " | tx-builder | "
 const log = require("@pioneer-platform/loggerdog")()
 import * as core from "@shapeshiftoss/hdwallet-core";
+import split from 'coinselect/split'
 //requires
 const coinSelect = require('coinselect')
+
 import { numberToHex } from 'web3-utils'
 let {
     xpubConvert,
@@ -27,9 +29,7 @@ export class TxBuilder {
     private buildTx: (tx: any) => Promise<any>;
     private swap: (tx: any) => Promise<any>;
     private lp: (tx: any) => Promise<any>;
-
-
-
+    
     constructor(pioneer:any,config:any) {
         this.pioneer = pioneer
         this.init = async function (wallet:any) {
@@ -45,7 +45,7 @@ export class TxBuilder {
         this.lp = async function (lp:any) {
             let tag = TAG + " | swap | "
             try {
-                log.info(tag,"lp: ",lp)
+                log.debug(tag,"lp: ",lp)
                 let unsignedTx:any
                 const expr = lp.protocol;
                 switch (expr) {
@@ -63,12 +63,12 @@ export class TxBuilder {
 
                         let sellAmount = lp.amountleg1
                         let buyAmount = lp.amountleg2
-                        log.info(tag,"{network:'OSMO',address:osmoAddress}: ",{network:'OSMO',address:osmoAddress})
+                        log.debug(tag,"{network:'OSMO',address:osmoAddress}: ",{network:'OSMO',address:osmoAddress})
                         let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'OSMO',address:osmoAddress})
-                        log.info(tag,"masterInfo: ",masterInfo)
+                        log.debug(tag,"masterInfo: ",masterInfo)
                         masterInfo = masterInfo.data
 
-                        log.info(tag,"masterInfo: ",masterInfo)
+                        log.debug(tag,"masterInfo: ",masterInfo)
                         let sequence = masterInfo.result.value.sequence || 0
                         let account_number = masterInfo.result.value.account_number
                         sequence = parseInt(String(sequence))
@@ -118,7 +118,7 @@ export class TxBuilder {
                     default:
                         throw Error("unhandled!: "+expr)
                 }
-                log.info(tag,"unsignedTx FINAL: ",unsignedTx)
+                log.debug(tag,"unsignedTx FINAL: ",unsignedTx)
                 return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -127,12 +127,12 @@ export class TxBuilder {
         this.swap = async function (tx:any) {
             let tag = TAG + " | swap | "
             try {
-                log.info(tag,"tx: ",tx)
+                log.debug(tag,"tx: ",tx)
                 let unsignedTx:any
                 const expr = tx.type;
                 switch (expr) {
                     case 'EVM':
-                        log.info('EVM Tx type');
+                        log.debug('EVM Tx type');
                         //get account info
                         let from = tx.from
                         let gas_limit = 80000
@@ -198,9 +198,9 @@ export class TxBuilder {
                             },
                             pubkey: tx.pubkey
                         }
-                        log.info(tag,"input transfer: ",transfer)
+                        log.debug(tag,"input transfer: ",transfer)
                         let transferTx = await this.transfer(transfer)
-                        log.info(tag,"transferTx: ",transferTx)
+                        log.debug(tag,"transferTx: ",transferTx)
                         unsignedTx = transferTx
                         break
                     case 'COSMOS':
@@ -208,7 +208,7 @@ export class TxBuilder {
                     default:
                         throw Error("unhandled!: "+expr)
                 }
-                log.info(tag,"unsignedTx FINAL: ",unsignedTx)
+                log.debug(tag,"unsignedTx FINAL: ",unsignedTx)
                 return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -217,7 +217,7 @@ export class TxBuilder {
         this.transfer = async function (tx:any) {
             let tag = TAG + " | transfer | "
             try {
-                log.info(tag,"tx: ",tx)
+                log.debug(tag,"tx: ",tx)
 
                 let unsignedTx:any
                 const expr = tx.blockchain;
@@ -226,24 +226,24 @@ export class TxBuilder {
                     case 'litecoin':
                     case 'dogecoin':
                         //
-                        log.info(tag,"selectedWallets: ",tx.pubkey)
+                        log.debug(tag,"selectedWallets: ",tx.pubkey)
                         //get btc fee rate
                         let feeRateInfo = await this.pioneer.instance.GetFeeInfo({coin:"BTC"})
                         feeRateInfo = feeRateInfo.data
-                        log.info(tag,"feeRateInfo: ",feeRateInfo)
+                        log.debug(tag,"feeRateInfo: ",feeRateInfo)
 
                         //get unspent from xpub
-                        log.info(tag,"tx.pubkey: ",tx.pubkey)
+                        log.debug(tag,"tx.pubkey: ",tx.pubkey)
                         if(!tx.pubkey.pubkey) throw Error("Failed to get pubkey!")
                         if(tx.pubkey.pubkey.length < 10) throw Error("invalid pubkey!")
                         //TODO validate pubkey per network
-                        log.info(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
+                        log.debug(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
                         
-                        log.info(tag,"pioneer: ",this.pioneer.instance)
-                        log.info(tag,"tx.pubkey.pubkey: ",tx)
+                        // log.debug(tag,"pioneer: ",this.pioneer.instance)
+                        // log.debug(tag,"tx.pubkey.pubkey: ",tx)
                         let unspentInputs = await this.pioneer.instance.ListUnspent({network:"BTC",xpub:tx.pubkey.pubkey})
                         unspentInputs = unspentInputs.data
-                        log.info(tag,"***** WTF unspentInputs: ",unspentInputs)
+                        // log.debug(tag,"***** WTF unspentInputs: ",unspentInputs)
 
                         //prepaire coinselect
                         let utxos = []
@@ -272,7 +272,7 @@ export class TxBuilder {
                         if(!tx.amount) throw Error("Invalid transfer Tx missing amount")
                         // @ts-ignore Generic Type wrong
                         let amountSat = parseInt(tx.amount * 100000000)
-                        log.info(tag,"amountSat: ",amountSat)
+                        log.debug(tag,"amountSat: ",amountSat)
 
                         //coinselect
                         // @ts-ignore Generic Transaction type incorrect
@@ -281,39 +281,82 @@ export class TxBuilder {
                         let toAddress = tx.toAddress
                         if(!toAddress) throw Error("invalid tx missing toAddress")
 
-                        let targets = [
-                            {
-                                address:toAddress,
-                                value: amountSat
-                            }
-                        ]
-
                         // @ts-ignore Generic Transaction type incorrect
                         let memo = null
                         if(tx.memo) {
                             memo = tx.memo
                         }
 
-                        //coinselect
-                        log.info(tag,"input coinSelect: ",{utxos, targets, feeRateInfo})
-                        let selectedResults = coinSelect(utxos, targets, feeRateInfo)
-                        log.info(tag,"result coinselect algo: ",selectedResults)
-
-                        //if fee > available
-                        if(!selectedResults.inputs){
-                            throw Error("Fee exceeded total available inputs!")
+                        //
+                        let selectedResults
+                        let targets
+                        if(tx.amount.toUpperCase() === 'MAX'){
+                            targets = [
+                                {
+                                    address:toAddress
+                                }
+                            ]
+                            //coinselect
+                            log.debug(tag,"input coinSelect: ",{utxos, targets, feeRateInfo})
+                            selectedResults = split(utxos, targets, feeRateInfo)
+                            log.debug(tag,"result split algo: ",selectedResults)
+                            //if fee > available
+                            if(!selectedResults.inputs){
+                                throw Error("Fee exceeded total available inputs!")
+                            }
+                        }else{
+                            targets = [
+                                {
+                                    address:toAddress,
+                                    value: amountSat
+                                }
+                            ]
+                            //coinselect
+                            log.debug(tag,"input coinSelect: ",{utxos, targets, feeRateInfo})
+                            selectedResults = coinSelect(utxos, targets, feeRateInfo)
+                            log.info(tag,"result coinselect algo: ",selectedResults)
+                            //if fee > available
+                            if(!selectedResults.inputs){
+                                throw Error("Fee exceeded total available inputs!")
+                            }
                         }
+                        //test
+                        if(selectedResults.outputs.length == targets.length){
+                            log.debug(tag,"No change address found!? checking")
+                        }
+
+                        //sanity
+                        let sumInputs = 0
+                        for(let i = 0; i < selectedResults.inputs.length; i++){
+                            let amount = selectedResults.inputs[i].value
+                            sumInputs = sumInputs + amount
+                        }
+
+                        let sumOut = 0
+                        for(let i = 0; i < selectedResults.outputs.length; i++){
+                            let amount = selectedResults.outputs[i].value
+                            sumOut = sumOut + amount
+                        }
+                        log.info(tag,"sumOut: ",sumOut)
+                        log.info(tag,"sumInputs: ",sumInputs)
+
+                        let feeVerify = sumInputs - sumOut
+                        log.info(tag,"feeVerify: ",feeVerify)
+                        log.info(tag,"selectedResults.fee: ",selectedResults.fee)
+
 
                         //buildTx
                         let inputs = []
                         for(let i = 0; i < selectedResults.inputs.length; i++){
                             //get input info
                             let inputInfo = selectedResults.inputs[i]
-                            log.info(tag,"inputInfo: ",inputInfo)
+                            log.debug(tag,"inputInfo: ",inputInfo)
                             if(!inputInfo.path) throw Error("failed to get path for input!")
                             let input = {
                                 addressNList:bip32ToAddressNList(inputInfo.path) || '',
+                                //@TODO switch based on pubkey type
                                 scriptType:"p2wpkh",
+                                // scriptType:"p2pkh",
                                 // scriptType:core.BTCInputScriptType.SpendAddress,
                                 // scriptType:core.BTCInputScriptType.SpendP2SHWitness,
                                 // scriptType:core.BTCInputScriptType.SpendAddress,
@@ -333,23 +376,23 @@ export class TxBuilder {
                         //get change address
                         // let changeAddressIndex = await this.pioneer.instance.GetChangeAddress(null,{network:"BTC",xpub:selectedWallets["BTC-XPUB"]})
                         // changeAddressIndex = changeAddressIndex.data.changeIndex
-                        // log.info(tag,"changeAddressIndex: ",changeAddressIndex)
+                        // log.debug(tag,"changeAddressIndex: ",changeAddressIndex)
                         //
                         // //let changePath
                         // let changePath =
 
                         //use master (hack)
-                        log.info(tag,"tx.pubkey: ",tx.pubkey)
+                        log.debug(tag,"tx.pubkey: ",tx.pubkey)
                         let changeAddress = tx.pubkey.address || tx.pubkey.master
                         if(!changeAddress) throw Error("Missing change address!!!")
-                        log.info(tag,"*** changeAddress: ",changeAddress)
+                        log.debug(tag,"*** changeAddress: ",changeAddress)
 
                         const outputsFinal:any = []
-                        log.info(tag,"selectedResults.outputs: ",selectedResults.outputs)
-                        log.info(tag,"outputsFinal: ",outputsFinal)
+                        log.debug(tag,"selectedResults.outputs: ",selectedResults.outputs)
+                        log.debug(tag,"outputsFinal: ",outputsFinal)
                         for(let i = 0; i < selectedResults.outputs.length; i++){
                             let outputInfo = selectedResults.outputs[i]
-                            log.info(tag,"outputInfo: ",outputInfo)
+                            log.debug(tag,"outputInfo: ",outputInfo)
                             if(outputInfo.address){
                                 //not change
                                 let output = {
@@ -358,7 +401,7 @@ export class TxBuilder {
                                     // scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value)
                                 }
-                                if(output.address)outputsFinal.push(output)
+                                outputsFinal.push(output)
                             } else {
                                 //change
                                 let output = {
@@ -370,29 +413,34 @@ export class TxBuilder {
                                     amount:String(outputInfo.value),
                                     isChange: true,
                                 }
-                                if(output.addressNList)outputsFinal.push(output)
+                                outputsFinal.push(output)
                             }
-                            log.info(tag,i,"outputsFinal: ",outputsFinal)
+                            // log.debug(tag,i,"outputsFinal: ",outputsFinal)
                         }
-                        log.info(tag,"outputsFinal: ",outputsFinal)
-                        //buildTx
-                        let hdwalletTxDescription:any = {
-                            coin: 'Bitcoin',
-                            inputs,
-                            outputs:outputsFinal,
-                            version: 1,
-                            locktime: 0,
+                        log.debug(tag,"outputsFinal: ",outputsFinal)
+                        log.debug(tag,"outputsFinal: ",outputsFinal.length)
+                        log.debug(tag,"selectedResults.outputs.length: ",selectedResults.outputs.length)
+                        if(outputsFinal.length === selectedResults.outputs.length){
+                            //buildTx
+                            let hdwalletTxDescription:any = {
+                                coin: 'Bitcoin',
+                                inputs,
+                                outputs:outputsFinal,
+                                // version: 1,
+                                // locktime: 0,
+                            }
+                            log.debug(tag,"hdwalletTxDescription: ",hdwalletTxDescription)
+                            if(memo) hdwalletTxDescription.opReturnData = memo
+                            unsignedTx = hdwalletTxDescription
+                            log.debug(tag,"unsignedTx pre: ",unsignedTx)
+                            log.debug(tag,"*** unsignedTx pre: ",JSON.stringify(unsignedTx))
+                        } else {
+                            throw Error("World makes no sense WTF")
                         }
-                        log.info(tag,"hdwalletTxDescription: ",hdwalletTxDescription)
-                        if(memo) hdwalletTxDescription.opReturnData = memo,
-                        log.info(tag,"hdwalletTxDescription: ",hdwalletTxDescription)
-                        unsignedTx = hdwalletTxDescription
-                        log.info(tag,"unsignedTx pre: ",unsignedTx)
-                        log.info(tag,"*** unsignedTx pre: ",JSON.stringify(unsignedTx))
                         break;
                     case 'ethereum':
                         //#TODO handle erc20
-                        log.info('EVM Tx type');
+                        log.debug('EVM Tx type');
                         //get account info
                         let from = tx.pubkey.address
                         if(!from) throw Error("Invalid pubkey! missing address!")
@@ -411,7 +459,7 @@ export class TxBuilder {
 
                         let value = baseAmountToNative('ETH',tx.amount)
                         if(!value) throw Error("unable to get value!")
-                        log.info(tag,"value: ",value)
+                        log.debug(tag,"value: ",value)
 
                         let to = tx.toAddress
                         if(!to) throw Error("unable to to address!")
@@ -442,11 +490,11 @@ export class TxBuilder {
                         const RUNE_BASE=100000000
 
                         let amountNative = baseAmountToNative(tx.asset,tx.amount)
-                        log.info(tag,"amountNative: ",amountNative)
+                        log.debug(tag,"amountNative: ",amountNative)
 
                         //get account number
                         let addressFrom = tx.pubkey.address
-                        log.info(tag,"addressFrom: ",addressFrom)
+                        log.debug(tag,"addressFrom: ",addressFrom)
                         if(!addressFrom) throw Error("Missing, addressFrom!")
                         if(!tx.toAddress) throw Error("Missing, toAddress!")
 
@@ -511,7 +559,7 @@ export class TxBuilder {
                     default:
                         throw Error("unhandled!: "+expr)
                 }
-                log.info(tag,"unsignedTx FINAL: ",unsignedTx)
+                log.debug(tag,"unsignedTx FINAL: ",unsignedTx)
                 return unsignedTx
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -520,20 +568,24 @@ export class TxBuilder {
         this.buildTx = async function (tx:any) {
             let tag = TAG + " | buildTx | "
             try {
-                let txUnsigned:any
-                const expr = tx.type;
-                switch (expr) {
-                    case 'swap':
-                        txUnsigned = await this.transfer(tx)
-                        log.info(tag,"txUnsigned: final ",txUnsigned)
-                        break;
-                    case 'transfer':
-                        txUnsigned = await this.transfer(tx)
-                        log.info(tag,"txUnsigned: final ",txUnsigned)
-                        break;
-                    default:
-                        throw Error("type not supported! type"+expr)
-                }
+                let txUnsigned = await this.transfer(tx)
+                log.debug(tag,"txUnsigned: final ",txUnsigned)
+
+                //TODO moar?
+                // let txUnsigned:any
+                // const expr = tx.type;
+                // switch (expr) {
+                //     case 'swap':
+                //         txUnsigned = await this.transfer(tx)
+                //         log.debug(tag,"txUnsigned: final ",txUnsigned)
+                //         break;
+                //     case 'transfer':
+                //         txUnsigned = await this.transfer(tx)
+                //         log.debug(tag,"txUnsigned: final ",txUnsigned)
+                //         break;
+                //     default:
+                //         throw Error("type not supported! type"+expr)
+                // }
                 
                 return txUnsigned
             } catch (e) {

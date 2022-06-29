@@ -22,19 +22,14 @@ let wait = require('wait-promise');
 let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'bitcoin'
-let BLOCKCHAIN_OUTPUT = 'ethereum'
 let ASSET = 'BTC'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0012"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0005"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_BTC_ADDRESS = process.env['FAUCET_BTC_ADDRESS']
 let FAUCET_ADDRESS = FAUCET_BTC_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
-
-let TRADE_PAIR  = "BTC_ETH"
-let INPUT_ASSET = ASSET
-let OUTPUT_ASSET = "ETH"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
@@ -51,8 +46,6 @@ let blockchains = [
 
 let txid:string
 let invocationId:string
-//87f5f8c4-b1d0-493a-950c-6d4e184f8b0a
-// let invocationId = "9a9cdf43-d852-4a01-bb0c-e9f6ea27ce4b"
 let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
@@ -139,7 +132,7 @@ const test_service = async function () {
                 showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
             }
         ]
-        
+
         let config:any = {
             blockchains,
             username,
@@ -150,7 +143,7 @@ const test_service = async function () {
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
-        //
+
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
@@ -158,138 +151,42 @@ const test_service = async function () {
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.info(tag,"result: ",result)
-
-        //pair wallet
-        if(!app.isConnected){
-            let resultPair = await app.pairWallet(wallet)
-            log.info(tag,"resultPair: ",resultPair)
-        }
-
-        //get available inputs
-        // assert(app.availableInputs)
-        //get available outputs
-        // assert(app.availableOutputs)
-
-        log.info(tag,"availableInputs: ",app.availableInputs.length)
-        log.info(tag,"balances: ",app.balances.length)
-        // log.debug(tag,"balances: ",app.balances)
-
+        //log.info(tag,"result: ",result)
         
-        //balance check of input
-        let balance = await app.balances.filter((e:any) => e.asset == ASSET)[0]
-        log.info(tag,"(check) balance: ",balance.balance)
-        log.info(tag,"(check) balance: ",balance)
-        assert(balance)
-        if(balance.balance < TEST_AMOUNT) throw Error("Low funds! top off!")
-
-        //estimated fee
-
-        //sendMax
-
-        //calculate max balance
-
-        if(!invocationId) {
-            let swap: any = {
-                input: {
-                    blockchain: BLOCKCHAIN,
-                    asset: ASSET,
-                },
-                output: {
-                    blockchain: BLOCKCHAIN_OUTPUT,
-                    asset: OUTPUT_ASSET,
-                },
-                amount: TEST_AMOUNT,
-                noBroadcast: true
-            }
-            log.info(tag, "swap: ", swap)
-
-            let tx = {
-                type: 'swap',
-                payload: swap
-            }
-
-            log.notice(tag, "CHECKPOINT0: pre-buildTx")
-
-            invocationId = await app.build(tx)
-            log.info(tag, "invocationId: ", invocationId)
-            assert(invocationId)
+        assert(app.username)
+        assert(app.context)
+        console.log("context: ",app.context)
+        console.log("pubkeys: ",app.pubkeys.length)        
+        console.log("balances: ",app.balances.length)
+        
+        let send = {
+            blockchain:BLOCKCHAIN,
+            asset:ASSET,
+            address:FAUCET_BTC_ADDRESS,
+            amount:TEST_AMOUNT
         }
-        assert(invocationId)
 
-        //get invocation
-        let invocationInfo = await app.getInvocation(invocationId)
-        log.info(tag, "invocationInfo: ", invocationInfo)
-
-        //sign
+        let tx = {
+            type:'sendToAddress',
+            payload:send
+        }
+        
+        let invocationId = await app.build(tx)
+        log.info(tag,"invocationId: ",invocationId)
+        
+        //signTx
         let resultSign = await app.sign(invocationId)
         log.info(tag,"resultSign: ",resultSign)
+        //
+        // //get txid
+        // let payload = {
+        //     noBroadcast:true,
+        //     sync:true,
+        //     invocationId
+        // }
+        // let resultBroadcast = await app.broadcast(payload)
+        // log.info(tag,"resultBroadcast: ",resultBroadcast)
 
-
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
-
-
-
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
-
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
-        }
-
-        while(!isFullfilled){
-            //get invocationInfo
-            await sleep(6000)
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.test(tag,"invocationInfo: ",invocationInfo.state)
-
-            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled) {
-                log.test(tag,"is fullfilled!")
-                fullfillmentTxid = invocationInfo.fullfillmentTxid
-                isFullfilled = true
-                console.timeEnd('confirm2fullfillment')
-                //get tx gas price
-            } else {
-                log.test(tag,"unfullfilled!")
-            }
-        }
 
         log.notice("****** TEST PASS ******")
         //process
