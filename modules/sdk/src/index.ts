@@ -870,9 +870,7 @@ export class SDK {
                     case 'sendToAddress':
                         //TODO validate payload
                         unsignedTx = await this.sendToAddress(tx.payload)
-
-
-
+                        
                         invocation = {
                             type:'sendToAddress',
                             network:tx.payload.asset, //TODO move network to blockahin
@@ -895,7 +893,8 @@ export class SDK {
                         //handle error
                         if(!quote.success){
                             //verbose error handling
-                            log.error(tag,"verbose error: ",JSON.stringify(quote))
+                            log.info(tag,"verbose error: ",JSON.stringify(quote))
+                            log.info(tag,"verbose error: ",quote)
                             throw Error("Failed to Create quote! unable to find a swap route! try again later.")
                         }
                         log.debug(tag,"result: ",result)
@@ -976,9 +975,14 @@ export class SDK {
                         break;
                     case 'thorchain':
                         txSigned = await this.wallet.thorchainSignTx(unsignedTx)
+                        
+                        //sequence inject for thorchain
+                        txSigned.signatures[0].sequence = txSigned.sequence.toString()
 
                         let broadcastString = {
                             tx:txSigned,
+                            // sequence:txSigned.sequence,
+                            // account_number:txSigned.account_number,
                             type:"cosmos-sdk/StdTx",
                             mode:"sync"
                         }
@@ -994,7 +998,7 @@ export class SDK {
                     default:
                         throw Error("blockchain not supported! blockchain: "+blockchain)
                 }
-                log.debug(tag,"txSigned: ",txSigned)
+                log.info(tag,"txSigned: ",txSigned)
 
                 //update invocation
                 // invocation.signedTxs[txSigned]
@@ -1003,7 +1007,7 @@ export class SDK {
 
                 //update invocation
                 let resultUpdate = await this.updateInvocation(invocation)
-                log.debug(tag,"resultUpdate: ",resultUpdate)
+                log.info(tag,"resultUpdate: ",resultUpdate)
 
                 return invocation
             } catch (e) {
@@ -1018,7 +1022,7 @@ export class SDK {
                 if(!broadcast.invocationId) throw Error("invocationId missing!")
 
                 let invocation = await this.getInvocation(broadcast.invocationId)
-    
+
                 if(!invocation.signedTx) throw Error("Can not broadcast before being signed!")
                 if(!invocation.network) throw Error("invalid invocation missing network!")
 
@@ -1202,8 +1206,8 @@ export class SDK {
 
                 //build rango payloads
                 const connectedWallets = [
-                    {blockchain: swap.input.asset, addresses: [inputAddress]},
-                    {blockchain: swap.output.asset, addresses: [outputAddress]}
+                    {blockchain: inputBlockchainRango, addresses: [inputAddress]},
+                    {blockchain: outputBlockchainRango, addresses: [outputAddress]}
                 ]
                 const selectedWallets = {
                     [inputBlockchainRango]:inputAddress,

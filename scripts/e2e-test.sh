@@ -14,5 +14,5 @@ then
   cd e2e/transfers/e2e-transfer-bitcoin && npm run dev
 # Default mode (use jest)
 else
-  cd e2e/transfers/e2e-transfer-bitcoin && npm run test
-
+  cd e2e/transfers/e2e-transfer-bitcoin && npm run dev;
+fi

@@ -9,7 +9,7 @@ require('dotenv').config({path:"./../../.env"});
 require("dotenv").config({path:'../../../.env'})
 require("dotenv").config({path:'../../../../.env'})
 
-const TAG  = " | e2e-test | "
+const TAG  = " | intergration-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
 import * as native from "@shapeshiftoss/hdwallet-native";
@@ -22,17 +22,21 @@ let wait = require('wait-promise');
 let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'ethereum'
+let BLOCKCHAIN_OUTPUT = 'bitcoin'
 let ASSET = 'ETH'
-let MIN_BALANCE = process.env['MIN_BALANCE_ETH'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0005"
+let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-let FAUCET_ETH_ADDRESS = process.env['FAUCET_ETH_ADDRESS']
-let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
-if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
+
+let TRADE_PAIR  = "ETH_BTC"
+let INPUT_ASSET = ASSET
+let OUTPUT_ASSET = "BTC"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
+
+
 let noBroadcast = false
 
 console.log("spec: ",spec)
@@ -43,8 +47,11 @@ let blockchains = [
 ]
 
 let txid:string
-let invocationId:string
+
 let IS_SIGNED: boolean
+
+// let invocationId:string
+let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
 
 const start_keepkey_controller = async function(){
     try{
@@ -108,111 +115,67 @@ const test_service = async function () {
 
         //if force new user
         //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = "sdk:pair-keepkey:test-1234";
+        const queryKey = process.env['PIONEER_QUERYKEY'];
         assert(queryKey)
 
-        const username = "sdk:test-user-1234";
+        const username = process.env['PIONEER_USERNAME'];
         assert(username)
-
+        
+        //add custom path
+        let paths:any = [
+        ]
+        
         let config:any = {
             blockchains,
             username,
             queryKey,
             spec,
             wss,
-            paths:[]
+            paths
         }
         let app = new SDK.SDK(spec,config)
-        log.debug(tag,"app: ",app)
+        log.info(tag,"app: ",app)
+
+        //verify paths
+        log.info(tag,"paths: ",app.paths.length)
+        log.info(tag,"paths: ",app.paths)
 
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
-        log.debug(tag,"wallet: ",wallet)
+        log.info(tag,"wallet: ",wallet)
 
-        //init with HDwallet
-        let result = await app.init(wallet)
-        log.debug(tag,"result: ",result)
 
-        let send = {
-            blockchain:BLOCKCHAIN,
-            asset:ASSET,
-            address:FAUCET_ADDRESS,
-            amount:TEST_AMOUNT,
-            noBroadcast:true
+
+        // //init with HDwallet
+        let result = await app.init()
+        log.info(tag,"result: ",result)
+
+
+        //pair wallet
+        if(!app.isConnected){
+            let resultPair = await app.pairWallet(wallet)
+            // log.info(tag,"resultPair: ",resultPair)
         }
 
-        let tx = {
-            type:'sendToAddress',
-            payload:send
-        }
+        log.info(tag,"app.availableOutputs: ",app.availableOutputs)
 
-        console.log("tx: ",tx)
-        let invocationId = await app.build(tx)
-        log.info(tag,"invocationId: ",invocationId)
+        let runeInfo = app.availableOutputs.filter((e:any) => e.symbol === "RUNE")
+        log.info(tag,"runeInfo: ",runeInfo)
 
-        //sign
-        let resultSign = await app.sign(invocationId)
-        log.info(tag,"resultSign: ",resultSign)
 
-        //broadcast
-        // let payload = {
-        //     noBroadcast:true,
-        //     sync:false
-        // }
+        let runeInfo1 = app.availableOutputs.filter((e:any) => e.symbol === "THOR")
+        log.info(tag,"runeInfo1: ",runeInfo1)
 
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
+        let runeInfo2 = app.availableOutputs.filter((e:any) => e.blockchain === "THORCHAIN")
+        log.info(tag,"runeInfo2: ",runeInfo2)
 
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
+        //Test remote objects
+        //get available inputs
+        // assert(app.availableInputs)
+        //get available outputs
+        // assert(app.availableOutputs)
 
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-
-            if(invocationInfo.broadcast.noBroadcast){
-                log.notice(tag,"noBroadcast flag found: exiting ")
-                statusCode = 3
-                isConfirmed = true
-            }
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
-        }
 
         log.notice("****** TEST PASS ******")
         //process

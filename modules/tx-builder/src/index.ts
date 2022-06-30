@@ -20,6 +20,7 @@ let {
     bip32ToAddressNList,
     map,
     COIN_MAP_LONG,
+    COIN_MAP_KEEPKEY_LONG,
     baseAmountToNative,
     nativeToBaseAmount
 } = require('@pioneer-platform/pioneer-coins')
@@ -226,6 +227,7 @@ export class TxBuilder {
                 const expr = tx.blockchain;
                 switch (expr) {
                     case 'bitcoin':
+                    case 'bitcoincash':
                     case 'litecoin':
                     case 'dogecoin':
                         //
@@ -240,11 +242,14 @@ export class TxBuilder {
                         if(!tx.pubkey.pubkey) throw Error("Failed to get pubkey!")
                         if(tx.pubkey.pubkey.length < 10) throw Error("invalid pubkey!")
                         //TODO validate pubkey per network
-                        log.debug(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
+                        log.info(tag,"tx.pubkey: ",tx.pubkey)
                         
                         // log.debug(tag,"pioneer: ",this.pioneer.instance)
                         // log.debug(tag,"tx.pubkey.pubkey: ",tx)
-                        let unspentInputs = await this.pioneer.instance.ListUnspent({network:"BTC",xpub:tx.pubkey.pubkey})
+                        let pubkey = tx.pubkey.pubkey
+                        log.info(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
+                        //@TODO use blockchain not symbol you doof
+                        let unspentInputs = await this.pioneer.instance.ListUnspent({network:tx.pubkey.symbol,xpub:pubkey})
                         unspentInputs = unspentInputs.data
                         // log.debug(tag,"***** WTF unspentInputs: ",unspentInputs)
 
@@ -266,10 +271,10 @@ export class TxBuilder {
                             }
                             utxos.push(utxo)
                         }
-                        log.info(tag,"utxos: ",utxos)
+                        log.debug(tag,"utxos: ",utxos)
                         //if no utxo's
                         if (utxos.length === 0){
-                            throw Error("101 YOUR BROKE! no UTXO's found! ")
+                            throw Error("101 YOUR BROKE! no UTXO's found! pubkey: network:"+tx.pubkey.symbol+" pubkey"+pubkey)
                         }
 
                         //validate amount
@@ -359,10 +364,21 @@ export class TxBuilder {
                             let inputInfo = selectedResults.inputs[i]
                             log.debug(tag,"inputInfo: ",inputInfo)
                             if(!inputInfo.path) throw Error("failed to get path for input!")
+                            let scriptType
+                            if(tx.pubkey.symbol === 'BTC'){
+                                scriptType = "p2wpkh"
+                            }else if(tx.pubkey.symbol === 'DOGE'){
+                                log.info(tag,"DEBUG DOGE!")
+                                scriptType = core.BTCInputScriptType.SpendAddress
+                            }else{
+                                scriptType = tx.pubkey.script_type
+                            }
+                            log.info(tag,"inputInfo scriptType: ",scriptType)
                             let input = {
                                 addressNList:bip32ToAddressNList(inputInfo.path) || '',
+                                scriptType,
                                 //@TODO switch based on pubkey type
-                                scriptType:"p2wpkh",
+                                // scriptType:"p2wpkh",
                                 // scriptType:"p2pkh",
                                 // scriptType:core.BTCInputScriptType.SpendAddress,
                                 // scriptType:core.BTCInputScriptType.SpendP2SHWitness,
@@ -403,22 +419,36 @@ export class TxBuilder {
                             if(outputInfo.address){
                                 //not change
                                 let output = {
-                                    address:toAddress,
+                                    address:"bitcoincash:"+toAddress,
                                     addressType:"spend",
                                     // scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value)
                                 }
                                 outputsFinal.push(output)
                             } else {
-                                // if(!tx.pubkey.pathMaster) throw Error("Invalid pubkey! missing pathMaster!")
+                                if(!tx.pubkey.pathMaster) throw Error("Invalid pubkey! missing pathMaster!")
+                                log.info(tag,"pathMaster: ",tx.pubkey.pathMaster)
+
+                                let scriptType
+                                if(tx.pubkey.symbol === 'BTC'){
+                                    scriptType = core.BTCInputScriptType.SpendWitness
+                                }else if(tx.pubkey.symbol === 'BCH'){
+                                    scriptType = 'cashaddr'
+                                } else {
+                                    scriptType = core.BTCInputScriptType.SpendAddress
+                                }
+                                log.info(tag,"scriptType: ",scriptType)
                                 let output = {
                                     // address:changeAddress,
                                     //@TODO move this to last not used
                                     //@TODO FOR THE LOVE GOD CHANGE THIS PER PUBKEY USED!
-                                    // addressNList: bip32ToAddressNList(tx.pubkey.pathMaster),
-                                    addressNList: bip32ToAddressNList("m/84'/0'/0'/0/0"),
+                                    addressNList: bip32ToAddressNList(tx.pubkey.pathMaster),
+                                    // addressNList: bip32ToAddressNList("m/44'/0'/0'/0/0"),
+                                    // addressNList: bip32ToAddressNList("m/84'/0'/0'/0/0"),
                                     addressType:"change",
-                                    scriptType:core.BTCInputScriptType.SpendWitness,
+                                    // scriptType:'cashaddr',
+                                    scriptType,
+                                    // scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value),
                                     isChange: true,
                                 }
@@ -432,7 +462,7 @@ export class TxBuilder {
                         if(outputsFinal.length === selectedResults.outputs.length){
                             //buildTx
                             let hdwalletTxDescription:any = {
-                                coin: 'Bitcoin',
+                                coin: COIN_MAP_KEEPKEY_LONG[tx.pubkey.symbol],
                                 inputs,
                                 outputs:outputsFinal,
                                 // version: 1,
@@ -452,8 +482,9 @@ export class TxBuilder {
                         //#TODO handle erc20
                         log.debug('EVM Tx type');
                         //get account info
-                        let from = tx.pubkey.address
-                        if(!from) throw Error("Invalid pubkey! missing address!")
+                        log.info('tx.pubkey: ',tx.pubkey);
+                        let from = tx.pubkey.address || tx.pubkey.master
+                        if(!from) throw Error("Invalid pubkey! missing address(from)!")
                         let gas_limit = 80000 //TODO dynamic? lowerme?
 
                         //get nonce
@@ -518,26 +549,28 @@ export class TxBuilder {
                         break
                     case 'thorchain':
                         const HD_RUNE_KEYPATH="m/44'/931'/0'/0/0"
-                        const RUNE_CHAIN="thorchain"
+                        const RUNE_CHAIN="thorchain-mainnet-v1"
                         const RUNE_BASE=100000000
 
                         let amountNative = baseAmountToNative(tx.asset,tx.amount)
                         log.debug(tag,"amountNative: ",amountNative)
 
+                        log.info(tag,"tx: ",tx)
                         //get account number
-                        let addressFrom = tx.pubkey.address
-                        log.debug(tag,"addressFrom: ",addressFrom)
+                        let addressFrom = tx.pubkey.address || tx.pubkey.master
+                        log.info(tag,"addressFrom: ",addressFrom)
                         if(!addressFrom) throw Error("Missing, addressFrom!")
                         if(!tx.toAddress) throw Error("Missing, toAddress!")
 
                         let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
                         masterInfo = masterInfo.data
-                        log.debug(tag,"masterInfo: ",masterInfo.data)
+                        log.info(tag,"masterInfo: ",masterInfo.data)
 
                         let sequence = masterInfo.result.value.sequence || 0
                         let account_number = masterInfo.result.value.account_number
                         sequence = parseInt(sequence)
                         sequence = sequence.toString()
+                        log.info(tag,"sequence: ",sequence)
 
                         let txType = "thorchain/MsgSend"
                         let gas = "650000"
@@ -571,6 +604,8 @@ export class TxBuilder {
                                     }
                                 }
                             ],
+                            sequence,
+                            account_number,
                             "signatures": null
                         }
 
@@ -589,7 +624,7 @@ export class TxBuilder {
                         unsignedTx = runeTx
                         break
                     default:
-                        throw Error("unhandled!: "+expr)
+                        throw Error("unhandled! transfer: "+expr)
                 }
                 log.debug(tag,"unsignedTx FINAL: ",unsignedTx)
                 return unsignedTx

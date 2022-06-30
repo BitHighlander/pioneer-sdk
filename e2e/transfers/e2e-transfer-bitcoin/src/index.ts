@@ -35,7 +35,7 @@ if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 let Controller = require("@keepkey/keepkey-hardware-controller")
 
 
-let noBroadcast = false
+let noBroadcast = true
 
 console.log("spec: ",spec)
 console.log("wss: ",wss)
@@ -47,6 +47,11 @@ let blockchains = [
 let txid:string
 let invocationId:string
 let IS_SIGNED: boolean
+
+//use noBroadcast by default
+let params = process.argv
+//is param passed then publish to chain (THIS COSTS FEES BRO!)
+if(params[0] === 'broadcast') noBroadcast = false
 
 const start_keepkey_controller = async function(){
     try{

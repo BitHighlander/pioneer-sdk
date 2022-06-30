@@ -44,7 +44,9 @@ let blockchains = [
 ]
 
 let txid:string
-let invocationId:string
+// let invocationId:string
+//pioneer:invocation:v0.01:RUNE:wHvdY2dTBXEUQcMRTBef4M
+let invocationId = 'pioneer:invocation:v0.01:RUNE:wHvdY2dTBXEUQcMRTBef4M'
 let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
@@ -120,7 +122,8 @@ const test_service = async function () {
             username,
             queryKey,
             spec,
-            wss
+            wss,
+            paths:[]
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
@@ -142,10 +145,76 @@ const test_service = async function () {
             noBroadcast:false
         }
 
-        let txid = await app.sendToAddress(send)
-        log.info(tag,"txid: ",txid)
+        let tx = {
+            type:'sendToAddress',
+            payload:send
+        }
 
-        //
+        log.info("tx: ",tx)
+        let invocationId = await app.build(tx)
+        log.info(tag,"invocationId: ",invocationId)
+
+        //signTx
+        let resultSign = await app.sign(invocationId)
+        log.info(tag,"resultSign: ",resultSign)
+
+        //get txid
+        let payload = {
+            noBroadcast:false,
+            sync:true,
+            invocationId
+        }
+        let resultBroadcast = await app.broadcast(payload)
+        log.info(tag,"resultBroadcast: ",resultBroadcast)
+
+        assert(resultBroadcast)
+        assert(resultBroadcast.broadcast)
+        assert(resultBroadcast.broadcast.success)
+
+        /*
+            Status codes
+            -1: errored
+             0: unknown
+             1: built
+             2: broadcasted
+             3: confirmed
+             4: fullfilled (swap completed)
+         */
+        //monitor tx lifecycle
+        let isConfirmed = false
+        let isFullfilled = false
+        let fullfillmentTxid = false
+        let currentStatus
+        let statusCode = 0
+
+        //wait till confirmed
+        while(!isConfirmed){
+            log.info("check for confirmations")
+            //
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+
+            if(invocationInfo.broadcast.noBroadcast){
+                log.notice(tag,"noBroadcast flag found: exiting ")
+                statusCode = 3
+                isConfirmed = true
+            }
+
+            if(invocationInfo && invocationInfo.isConfirmed){
+                log.test(tag,"Confirmed!")
+                statusCode = 3
+                isConfirmed = true
+                console.timeEnd('timeToConfirmed')
+                console.time('confirm2fullfillment')
+            } else {
+                log.test(tag,"Not Confirmed!",new Date().getTime())
+            }
+
+            await sleep(3000)
+            log.info("sleep over")
+        }
+
 
 
         log.notice("****** TEST PASS ******")
