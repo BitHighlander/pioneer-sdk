@@ -27,9 +27,9 @@ let MIN_BALANCE = process.env['MIN_BALANCE_ETH'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0005"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-let FAUCET_ETH_ADDRESS = process.env['FAUCET_RUNE_ADDRESS']
-let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
+let FAUCET_ADDRESS = process.env['FAUCET_RUNE_ADDRESS']
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
+let TEST_MEMO = process.env['TEST_MEMO'] || 'e2e-pioneer-test'
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
@@ -142,6 +142,7 @@ const test_service = async function () {
             asset:ASSET,
             address:FAUCET_ADDRESS,
             amount:TEST_AMOUNT,
+            memo:TEST_MEMO,
             noBroadcast:false
         }
 

@@ -1367,6 +1367,7 @@ export class SDK {
                     asset:tx.asset,
                     toAddress:tx.address,
                     amount:tx.amount,
+                    memo:tx.memo || '',
                     pubkey: await this.getPubkey(tx.asset)
                 }
                 

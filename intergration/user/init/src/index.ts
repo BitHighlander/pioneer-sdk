@@ -223,27 +223,33 @@ const test_service = async function () {
         let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
         log.info("bitcoinPubkeys: ",bitcoinPubkeys)
 
-
         let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
         log.info("bitcoinBalances: ",bitcoinBalances)
 
-        //get prefured pubkey
-        let preferedPubkey = await app.getPubkey('BTC')
-        log.info("preferedPubkey: ",preferedPubkey)
+        //verify usd value correct
+        for(let i = 0; i < bitcoinBalances.length; i++){
+            let balance = bitcoinBalances[i]
+            log.info(tag,"** balance: ",balance.balance)
+            log.info(tag,"** priceUsd: ",balance.priceUsd)
+        }
 
-        //get balance (aggrate)
-        // let preferedPubkey = app.getBalance('BTC')
+        // //get prefured pubkey
+        // let preferedPubkey = await app.getPubkey('BTC')
         // log.info("preferedPubkey: ",preferedPubkey)
-
-        //get address (of primary)
-        let preferredAddy = await app.getAddress('BTC')
-        log.info("preferredAddy: ",preferredAddy)
-
-        //Test remote objects
-        //get available inputs
-        // assert(app.availableInputs)
-        //get available outputs
-        // assert(app.availableOutputs)
+        //
+        // //get balance (aggrate)
+        // // let preferedPubkey = app.getBalance('BTC')
+        // // log.info("preferedPubkey: ",preferedPubkey)
+        //
+        // //get address (of primary)
+        // let preferredAddy = await app.getAddress('BTC')
+        // log.info("preferredAddy: ",preferredAddy)
+        //
+        // //Test remote objects
+        // //get available inputs
+        // // assert(app.availableInputs)
+        // //get available outputs
+        // // assert(app.availableOutputs)
 
 
         log.notice("****** TEST PASS ******")

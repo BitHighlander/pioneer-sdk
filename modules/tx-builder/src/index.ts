@@ -573,8 +573,8 @@ export class TxBuilder {
                         log.info(tag,"sequence: ",sequence)
 
                         let txType = "thorchain/MsgSend"
-                        let gas = "650000"
-                        let fee = "0"
+                        let gas = "650000" //@TODO allow custom
+                        let fee = "0" //@TODO allow custom
                         let memoThorchain = tx.memo || ""
 
                         //sign tx
