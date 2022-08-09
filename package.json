@@ -11,6 +11,7 @@
     "version": "independent"
   },
   "scripts": {
+    "yarn": "yarn",
     "clean": "make clean",
     "build": "lerna run build --include-dependencies",
     "refresh": "make clean && make",

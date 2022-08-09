@@ -25,7 +25,7 @@ let BLOCKCHAIN = 'thorchain'
 let BLOCKCHAIN_OUTPUT = 'bitcoincash'
 let ASSET = 'RUNE'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "1"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
@@ -126,6 +126,7 @@ const test_service = async function () {
             username,
             queryKey,
             spec,
+            paths:[],
             wss
         }
         let app = new SDK.SDK(spec,config)
@@ -144,12 +145,13 @@ const test_service = async function () {
         if(!app.isConnected){
             let resultPair = await app.pairWallet(wallet)
             log.info(tag,"resultPair: ",resultPair)
+            assert(resultPair)
         }
 
         //get available inputs
-        // assert(app.availableInputs)
+        assert(app.availableInputs)
         //get available outputs
-        // assert(app.availableOutputs)
+        assert(app.availableOutputs)
 
         log.info(tag,"availableInputs: ",app.availableInputs.length)
         log.info(tag,"availableOutputs: ",app.availableOutputs.length)
@@ -169,38 +171,42 @@ const test_service = async function () {
         log.info(tag,"swap: ",swap)
 
         if(!invocationId){
-            //get quote
-            let quote = await app.swapQuote(swap)
-            log.info(tag,"quote: ",quote)
-            assert(quote.invocationId)
-            log.info(tag,"quote: ",quote.invocationId)
-            invocationId = quote.invocationId
-            //get invocations
-            let invocations = await app.getInvocations()
-            log.info(tag,"invocations: ",invocations)
-            //TODO verify invocation inside
+            let swap:any = {
+                input:{
+                    blockchain:BLOCKCHAIN,
+                    asset:ASSET,
+                },
+                output:{
+                    blockchain:BLOCKCHAIN_OUTPUT,
+                    asset:OUTPUT_ASSET,
+                },
+                amount:TEST_AMOUNT,
+                noBroadcast:true
+            }
+            log.info(tag,"swap: ",swap)
 
-            let invocation = invocations.filter((e:any) => e.invocationId == quote.invocationId)[0]
-            assert(invocation)
-            // log.info(tag,"invocation: ",invocation)
+            let tx = {
+                type:'swap',
+                payload:swap
+            }
 
-            //buildSwap
-            let swapBuilt = await app.buildSwap(quote.invocationId)
-            log.info(tag,"swapBuilt: ",swapBuilt)
+            invocationId = await app.build(tx)
+            log.info(tag,"invocationId: ",invocationId)
+            assert(invocationId)
 
-            //get invocation
-            let invocation1 = await app.getInvocation(quote.invocationId)
-            log.info(tag,"invocation1.state: ",invocation1.state)
-            assert(invocation1.stats, 'builtTx')
+            //sign
+            let resultSign = await app.sign(invocationId)
+            log.info(tag,"resultSign: ",resultSign)
 
-            //executeSwap
-            let executionResp = await app.swapExecute(quote.invocationId)
-            log.info(tag,"executionResp: ",executionResp)
 
-            //get invocation2
-            let invocation2 = await app.getInvocation(quote.invocationId)
-            log.info(tag,"invocation2.state: ",invocation1.state)
-            assert(invocation1.state, 'broadcasted')
+            //get txid
+            let payload = {
+                noBroadcast:false,
+                sync:true,
+                invocationId
+            }
+            let resultBroadcast = await app.broadcast(payload)
+            log.info(tag,"resultBroadcast: ",resultBroadcast)
         }
 
         /*

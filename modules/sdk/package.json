@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@pioneer-platform/pioneer-client": "^8.1.24",
-    "@pioneer-platform/pioneer-coins": "8.1.46",
+    "@pioneer-platform/pioneer-coins": "8.1.52",
     "@pioneer-platform/pioneer-events": "^8.1.30",
     "@pioneer-platform/pioneer-invoke": "^8.1.35",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",

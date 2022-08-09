@@ -111,10 +111,10 @@ const test_service = async function () {
 
         //if force new user
         //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = "sdk:pair-keepkey:test-1234";
+        const queryKey = "sdk:pair-keepkey:test-12345";
         assert(queryKey)
 
-        const username = "sdk:test-user-1234";
+        const username = "sdk:test-user-12345";
         assert(username)
 
         let config:any = {
@@ -159,6 +159,7 @@ const test_service = async function () {
         let resultSign = await app.sign(invocationId)
         log.info(tag,"resultSign: ",resultSign)
 
+        
         //get txid
         let payload = {
             noBroadcast:false,
@@ -172,55 +173,109 @@ const test_service = async function () {
         assert(resultBroadcast.broadcast)
         assert(resultBroadcast.broadcast.success)
 
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
 
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        let checkTx = async function(){
+            try{
+                log.info(tag,"checkTx")
+                /*
+                    Status codes
+                    -1: errored
+                     0: unknown
+                     1: built
+                     2: broadcasted
+                     3: confirmed
+                     4: fullfilled (swap completed)
+                 */
+                //monitor tx lifecycle
+                let isConfirmed = false
+                let isFullfilled = false
+                let fullfillmentTxid = false
+                let currentStatus
+                let statusCode = 0
 
-            if(invocationInfo.broadcast.noBroadcast){
-                log.notice(tag,"noBroadcast flag found: exiting ")
-                statusCode = 3
-                isConfirmed = true
+                    log.info("check for confirmations")
+                    //
+                    let invocationInfo = await app.getInvocation(invocationId)
+                    log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+                    log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+
+                    if(invocationInfo.broadcast.noBroadcast){
+                        log.notice(tag,"noBroadcast flag found: exiting ")
+                        statusCode = 3
+                        isConfirmed = true
+                    }
+
+                    if(invocationInfo && invocationInfo.isConfirmed){
+                        log.test(tag,"Confirmed!")
+                        statusCode = 3
+                        isConfirmed = true
+                        console.timeEnd('timeToConfirmed')
+                        console.time('confirm2fullfillment')
+
+                        log.notice("****** TEST PASS ******")
+                        //process
+                        process.exit(0)
+                    } else {
+                        log.test(tag,"Not Confirmed!",new Date().getTime())
+                    }
+
+            }catch(e){
+
             }
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
         }
 
+        app.events.events.on('blocks', (event:any) => {
+            log.info(tag,"blocks event!", event)
 
+            checkTx()
 
-        log.notice("****** TEST PASS ******")
-        //process
-        process.exit(0)
+        })
+
+        //
+        // /*
+        //     Status codes
+        //     -1: errored
+        //      0: unknown
+        //      1: built
+        //      2: broadcasted
+        //      3: confirmed
+        //      4: fullfilled (swap completed)
+        //  */
+        // //monitor tx lifecycle
+        // let isConfirmed = false
+        // let isFullfilled = false
+        // let fullfillmentTxid = false
+        // let currentStatus
+        // let statusCode = 0
+        //
+        // //wait till confirmed
+        // while(!isConfirmed){
+        //     log.info("check for confirmations")
+        //     //
+        //     let invocationInfo = await app.getInvocation(invocationId)
+        //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //
+        //     if(invocationInfo.broadcast.noBroadcast){
+        //         log.notice(tag,"noBroadcast flag found: exiting ")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //     }
+        //
+        //     if(invocationInfo && invocationInfo.isConfirmed){
+        //         log.test(tag,"Confirmed!")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //         console.timeEnd('timeToConfirmed')
+        //         console.time('confirm2fullfillment')
+        //     } else {
+        //         log.test(tag,"Not Confirmed!",new Date().getTime())
+        //     }
+        //
+        //     await sleep(3000)
+        //     log.info("sleep over")
+        // }
+        
     } catch (e) {
         log.error(e)
         //process

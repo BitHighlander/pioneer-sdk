@@ -25,6 +25,11 @@ let {
     nativeToBaseAmount
 } = require('@pioneer-platform/pioneer-coins')
 
+//@TODO moveme to coins?
+const HD_RUNE_KEYPATH="m/44'/931'/0'/0/0"
+const RUNE_CHAIN="thorchain-mainnet-v1"
+const RUNE_BASE=100000000
+
 export class TxBuilder {
     private pioneer: any
     private init: (tx: any) => Promise<any>;
@@ -32,6 +37,7 @@ export class TxBuilder {
     private buildTx: (tx: any) => Promise<any>;
     private swap: (tx: any) => Promise<any>;
     private lp: (tx: any) => Promise<any>;
+    private deposit: (tx: any) => Promise<any>;
     
     constructor(pioneer:any,config:any) {
         this.pioneer = pioneer
@@ -207,6 +213,26 @@ export class TxBuilder {
                         log.debug(tag,"transferTx: ",transferTx)
                         unsignedTx = transferTx
                         break
+                    case 'DEPOSIT':
+
+                        //verify deposit
+                        let deposit:any = {
+                            type:"deposit",
+                            blockchain:COIN_MAP_LONG[tx.asset.symbol],
+                            asset:tx.asset.symbol,
+                            toAddress:tx.recipientAddress,
+                            amount:nativeToBaseAmount(tx.asset.symbol, tx.amount),
+                            memo:tx.memo,
+                            from: {
+                                pubkey:tx.from
+                            },
+                            pubkey: tx.pubkey
+                        }
+                        
+                        let depositTx = await this.deposit(deposit)
+                        log.debug(tag,"depositTx: ",depositTx)
+                        unsignedTx = depositTx
+                        break
                     case 'COSMOS':
                         throw Error("TODO")
                     default:
@@ -214,6 +240,115 @@ export class TxBuilder {
                 }
                 log.debug(tag,"unsignedTx FINAL: ",unsignedTx)
                 return unsignedTx
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.deposit = async function (deposit:any) {
+            let tag = TAG + " | deposit | "
+            try {
+                let rawTx
+                log.info(tag,"deposit: ",deposit)
+                const RUNE_BASE=100000000
+                
+                if(deposit.blockchain !== 'thorchain') throw Error("Network not supported!"+deposit.blockchain)
+                
+                
+                //use msgDeposit
+                //get amount native
+                let amountNative = RUNE_BASE * parseFloat(deposit.amount)
+                amountNative = parseInt(amountNative.toString())
+
+                let addressFrom = deposit.addressFrom || deposit.from.pubkey
+                if(!addressFrom) throw Error("Invalid deposit! missing addressFrom!")
+
+                //get account number
+                log.debug(tag,"addressFrom: ",addressFrom)
+                let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
+                masterInfo = masterInfo.data
+                log.debug(tag,"masterInfo: ",masterInfo)
+
+                let sequence = masterInfo.result.value.sequence || 0
+                let account_number = masterInfo.result.value.account_number
+                sequence = parseInt(sequence)
+                sequence = sequence.toString()
+
+                let txType = "thorchain/MsgDeposit"
+                let gas = "3500000"
+                let fee = "2000000"
+                if(!deposit.memo) throw Error("103: invalid swap! missing memo")
+                let memo = deposit.memo
+
+                //sign tx
+                let unsigned = {
+                    "fee": {
+                        "amount": [
+                            {
+                                "amount": fee,
+                                "denom": "rune"
+                            }
+                        ],
+                        "gas": gas
+                    },
+                    "msg": [
+                        {
+                            "type": txType,
+                            "value": {
+                                "coins": [
+                                    {
+                                        "amount": amountNative.toString(),
+                                        "asset": "THOR.RUNE"
+                                    }
+                                ],
+                                "memo": memo,
+                                "signer": addressFrom
+                            }
+                        }
+                    ]
+                }
+
+                let	chain_id = RUNE_CHAIN
+
+                if(!sequence) throw Error("112: Failed to get sequence")
+                if(!account_number) account_number = 0
+
+                log.info(tag,"res: ",{
+                    addressNList: bip32ToAddressNList(HD_RUNE_KEYPATH),
+                    chain_id,
+                    account_number: account_number,
+                    sequence:sequence,
+                    tx: unsigned,
+                })
+
+                log.info(tag,"******* signTx: ",JSON.stringify({
+                    addressNList: bip32ToAddressNList(HD_RUNE_KEYPATH),
+                    chain_id,
+                    account_number: account_number,
+                    sequence:sequence,
+                    tx: unsigned,
+                }))
+
+                let runeTx = {
+                    addressNList: bip32ToAddressNList(HD_RUNE_KEYPATH),
+                    chain_id,
+                    account_number: account_number,
+                    sequence:sequence,
+                    tx: unsigned,
+                }
+
+                //
+                // let unsignedTx:any = {
+                //     invocationId:deposit.invocationId,
+                //     network:deposit.network,
+                //     deposit,
+                //     HDwalletPayload:runeTx,
+                //     verbal:"Thorchain transaction"
+                // }
+
+                rawTx = runeTx
+            
+
+                return rawTx
             } catch (e) {
                 log.error(tag, "e: ", e)
             }
@@ -548,9 +683,6 @@ export class TxBuilder {
                         unsignedTx = ethTx
                         break
                     case 'thorchain':
-                        const HD_RUNE_KEYPATH="m/44'/931'/0'/0/0"
-                        const RUNE_CHAIN="thorchain-mainnet-v1"
-                        const RUNE_BASE=100000000
 
                         let amountNative = baseAmountToNative(tx.asset,tx.amount)
                         log.debug(tag,"amountNative: ",amountNative)

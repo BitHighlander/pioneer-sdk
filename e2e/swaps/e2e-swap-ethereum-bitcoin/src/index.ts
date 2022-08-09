@@ -25,7 +25,8 @@ let BLOCKCHAIN = 'ethereum'
 let BLOCKCHAIN_OUTPUT = 'bitcoin'
 let ASSET = 'ETH'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "MAX"
+// let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "MAX"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.01"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 

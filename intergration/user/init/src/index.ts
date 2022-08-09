@@ -78,6 +78,8 @@ const start_keepkey_controller = async function(){
 
         controller.init()
 
+        console.log("controller: ",controller)
+
         while(!controller.wallet){
             await sleep(1000)
         }
@@ -162,30 +164,43 @@ const test_service = async function () {
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
 
+        //forget
+        // log.info(tag,"app.pioneer: ",app.pioneer.instance)
+        // let resultForget = await app.pioneer.instance.Forget()
+        // log.info(tag,"resultForget: ",resultForget.data)
+
+
         //verify paths
         log.info(tag,"paths: ",app.paths.length)
-        log.info(tag,"paths: ",app.paths)
+        // log.info(tag,"paths: ",app.paths)
 
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
-        log.info(tag,"wallet: ",wallet)
-
+        // log.info(tag,"wallet: ",wallet)
 
 
         // //init with HDwallet
         let result = await app.init()
-        log.info(tag,"result: ",result)
-
+        // log.info(tag,"result: ",result)
 
         //pair wallet
         if(!app.isConnected){
             let resultPair = await app.pairWallet(wallet)
             // log.info(tag,"resultPair: ",resultPair)
         }
-
-
-        log.info(tag,"pubkeys: ",app.pubkeys.length)
+        
+        //LOAD SEED TO KEEPKEY @TODO move to its own test
+        // //wipe
+        // let resultWipe = await wallet.wipe()
+        // log.info(tag,"resultWipe: ",resultWipe)
+        //
+        // //load
+        // console.log("WALLET_MAIN: ",process.env['WALLET_MAIN'])
+        // let resultLoad = await wallet.loadDevice({
+        //     mnemonic:process.env['WALLET_MAIN']
+        // })
+        // log.info(tag,"resultLoad: ",resultLoad)
         
         //expect
         //xpub
@@ -193,12 +208,12 @@ const test_service = async function () {
 
         //iterate over pubkeys
         //verify all are valid
-        for(let i = 0; i < app.pubkeys.length; i++){
-            let pubkey = app.pubkeys[i]
-            // log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " pubkey: ",pubkey)
-            log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
-            assert(pubkey.pubkey)
-        }
+        // for(let i = 0; i < app.pubkeys.length; i++){
+        //     let pubkey = app.pubkeys[i]
+        //     // log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " pubkey: ",pubkey)
+        //     log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
+        //     assert(pubkey.pubkey)
+        // }
 
         // let ethPubkeys = app.pubkeys.filter((e:any) => e.symbol === "ETH")
         // log.info("ethPubkeys: ",ethPubkeys)
@@ -209,10 +224,10 @@ const test_service = async function () {
         // log.info("ethBalances: ",ethBalances[0].balance)
 
         //update
-        let refreshResult = await app.refresh()
-        log.info("refreshResult: ",refreshResult)
+        // let refreshResult = await app.refresh()
+        // log.info("refreshResult: ",refreshResult)
 
-        let refreshUpdate = await app.updateContext()
+        // let refreshUpdate = await app.updateContext()
         // log.info("refreshUpdate: ",refreshUpdate)
         //
         // // let ethBalances2 = app.balances.filter((e:any) => e.symbol === "ETH")
@@ -220,18 +235,24 @@ const test_service = async function () {
         // // log.info("ethBalances2: ",ethBalances2[0].balance)
         //
 
-        let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
-        log.info("bitcoinPubkeys: ",bitcoinPubkeys)
+        // let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
+        // log.info("bitcoinPubkeys: ",bitcoinPubkeys)
+        //
+        // let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
+        // log.info("bitcoinBalances: ",bitcoinBalances)
+        //
+        // //verify usd value correct
+        // for(let i = 0; i < bitcoinBalances.length; i++){
+        //     let balance = bitcoinBalances[i]
+        //     log.info(tag,"** balance: ",balance.balance)
+        //     log.info(tag,"** priceUsd: ",balance.priceUsd)
+        // }
+        //
+        // //rune
+        // let runeBalance = app.balances.filter((e:any) => e.symbol === "RUNE")
+        // log.info("runeBalance: ",runeBalance)
 
-        let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
-        log.info("bitcoinBalances: ",bitcoinBalances)
 
-        //verify usd value correct
-        for(let i = 0; i < bitcoinBalances.length; i++){
-            let balance = bitcoinBalances[i]
-            log.info(tag,"** balance: ",balance.balance)
-            log.info(tag,"** priceUsd: ",balance.priceUsd)
-        }
 
         // //get prefured pubkey
         // let preferedPubkey = await app.getPubkey('BTC')
@@ -250,11 +271,13 @@ const test_service = async function () {
         // // assert(app.availableInputs)
         // //get available outputs
         // // assert(app.availableOutputs)
-
+        
+        //listen to events
+        
 
         log.notice("****** TEST PASS ******")
         //process
-        process.exit(0)
+        //process.exit(0)
     } catch (e) {
         log.error(e)
         //process

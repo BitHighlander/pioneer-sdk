@@ -77,7 +77,6 @@ export class SDK {
     public spec: any;
     private wallet: any;
     private walletType: string;
-
     public paths: any;
     private pubkeys: any;
     private keyring: any;
@@ -224,20 +223,6 @@ export class SDK {
                 //TODO verify ETH address match
 
                 if(!userInfo || userInfo.error || userInfo?.balances.length === 0) {
-                    //register user empty
-                    //register
-                    // let register = {
-                    //     username:this.username,
-                    //     blockchains:this.blockchains,
-                    //     queryKey:this.queryKey,
-                    //     auth:'lol',
-                    //     provider:'lol'
-                    // }
-                    // log.debug(tag,"register payload: ",register)
-                    // let result = await this.pioneer.instance.RegisterUser(null, register)
-                    // log.debug(tag,"register user result: ",result)
-                    // result = result.data
-                    
                     //no wallets paired
                     log.debug(tag, "user not registered! info: ",userInfo)
                     if(wallet){
@@ -292,6 +277,7 @@ export class SDK {
             try {
                 if(!wallet) throw Error("Must have wallet to pair!")
                 if(!this.blockchains) throw Error("Must have blockchains to pair!")
+                if(!this.username) throw Error("Must have username to pair!")
                 //wallet
                 if(wallet) {
                     this.wallet =  wallet
@@ -319,10 +305,16 @@ export class SDK {
                 // })
                 
                 //TODO error if server is offline
+                let pubkeys = await this.getPubkeys()
+                log.info(tag,"pubkeys: ",pubkeys)
+                log.info(tag,"this.pubkeys: ",this.pubkeys)
+                // if(pubkeys.pubkeys) this.pubkeys = pubkeys.pubkeys
+                
+                
                 
                 //if wallet not registerd
                 if(this.balances.length === 0){
-                    let pubkeys = await this.getPubkeys()
+                    
                     //register
                     let register = {
                         username:this.username,
@@ -446,6 +438,10 @@ export class SDK {
                 this.events.events.on('pubkey', (event:any) => {
                     log.debug(tag,"pubkey event!", event)
                     //update pubkeys
+                });
+
+                this.events.events.on('blocks', (event:any) => {
+                    log.info(tag,"blocks event!", event)
                 });
 
                 this.events.events.on('balances', (event:any) => {
@@ -642,6 +638,8 @@ export class SDK {
                             log.debug(tag,"address: ",address)
                             break;
                         case 'ETH':
+                        case 'AVAX':
+                        case 'MATIC':
                             address = await this.wallet.ethGetAddress({
                                 addressNList:paths[i].addressNListMaster,
                                 coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
@@ -959,12 +957,13 @@ export class SDK {
                 if(!invocation.unsignedTx) throw Error("Unable to sign tx! missing unsignedTx")
                 let unsignedTx = invocation.unsignedTx
                 let txSigned:any
+
+                log.info(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                 switch (blockchain) {
                     case 'bitcoin':
                     case 'bitcoincash':
                     case 'litecoin':
                     case 'dogecoin':
-                        log.info(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
                         break;
                     case 'ethereum':
@@ -975,9 +974,10 @@ export class SDK {
                         break;
                     case 'thorchain':
                         txSigned = await this.wallet.thorchainSignTx(unsignedTx)
-                        
+                        log.info(tag,"txSigned: ",txSigned)
+
                         //sequence inject for thorchain
-                        txSigned.signatures[0].sequence = txSigned.sequence.toString()
+                        txSigned.signatures[0].sequence = unsignedTx.sequence.toString()
 
                         let broadcastString = {
                             tx:txSigned,
@@ -1038,6 +1038,9 @@ export class SDK {
                     invocationId: broadcast.invocationId,
                     noBroadcast:broadcast.noBroadcast
                 }
+
+                log.info(tag,"broadcastBodyTransfer: ",broadcastBodyTransfer)
+                log.info(tag,"broadcastBodyTransfer: ",JSON.stringify(broadcastBodyTransfer))
                 let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
                 resultBroadcastTransfer = resultBroadcastTransfer.data
                 invocation.broadcast = resultBroadcastTransfer
@@ -1200,10 +1203,16 @@ export class SDK {
                 let outputAddress = await this.getAddress(swap.output.asset)
                 if(!outputAddress) throw Error("failed to get address for output!")
 
+                //remove bitcoincash: prefix
+                outputAddress = outputAddress.replace("bitcoincash:","")
+                inputAddress = inputAddress.replace("bitcoincash:","")
+
                 //@TODO validate blockchains convert to rango blockchain! better
                 let inputBlockchainRango = getRangoBlockchainName(swap.input.blockchain)
                 let outputBlockchainRango = getRangoBlockchainName(swap.output.blockchain)
-
+                if(!inputBlockchainRango) throw Error("Failed to get rango name for blockchain! input: "+swap.input.blockchain)
+                if(!outputBlockchainRango) throw Error("Failed to get rango name for blockchain! output: "+swap.output.blockchain)
+                
                 //build rango payloads
                 const connectedWallets = [
                     {blockchain: inputBlockchainRango, addresses: [inputAddress]},
@@ -1309,13 +1318,24 @@ export class SDK {
                 if(!inputAsset) throw Error("invalid invocation, missing swap input asset!")
                 
                 //if UTXO
-                if(tx.type === 'TRANSFER'){
+                if(tx.type === 'TRANSFER' && tx.method === 'transfer'){
+                    log.info("TRANSFER DETECTED! UTXO based")
                     tx.pubkey = await this.getPubkey(inputAsset)
                     if(!tx.pubkey) throw Error("failed to get pubkey!")
                     tx.from = await this.getAddress(inputAsset)
                     if(!tx.from) throw Error("failed to get from address!")
                     tx.memo = transactionResponse.transaction.memo
-                }else{
+                } else if(tx.type === 'TRANSFER' && tx.method === 'deposit'){
+                    log.info("DEPOSIT DETECTED! RUNE/contract based")
+                    //contract call
+                    tx.type = 'DEPOSIT'
+                    tx.pubkey = await this.getPubkey(inputAsset)
+                    if(!tx.pubkey) throw Error("failed to get pubkey!")
+                    tx.from = await this.getAddress(inputAsset)
+                    if(!tx.from) throw Error("failed to get from address!")
+                    tx.memo = transactionResponse.transaction.memo
+                }else {
+                    log.info("EVM DETECTED! evm based")
                     //@TODO this might be jank mapping blockChain/rango to symbol!
                     tx.from = await this.getAddress(inputAsset)
                     if(!tx.from) throw Error("failed to get from address!")
