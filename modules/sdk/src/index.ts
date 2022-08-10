@@ -8,6 +8,8 @@
 
  */
 
+import cryptoTools from "crypto";
+
 const TAG = " | Pioneer-sdk | "
 const log = require("@pioneer-platform/loggerdog")()
 let {
@@ -410,7 +412,7 @@ export class SDK {
                 this.events.events.on('message', (event:any) => {
                     log.debug(tag,'message event! ',event);
                     this.isPaired = true
-                    this.username = event.username
+                    // this.username = event.username
                     this.updateContext()
                     this.events.pair(this.username)
 
@@ -957,6 +959,8 @@ export class SDK {
                 if(!invocation.unsignedTx) throw Error("Unable to sign tx! missing unsignedTx")
                 let unsignedTx = invocation.unsignedTx
                 let txSigned:any
+                let broadcastString:any
+                let txid:any
 
                 log.info(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                 switch (blockchain) {
@@ -968,7 +972,7 @@ export class SDK {
                         break;
                     case 'ethereum':
                         txSigned = await this.wallet.ethSignTx(unsignedTx)
-                        const txid = keccak256(txSigned.serialized).toString('hex')
+                        txid = keccak256(txSigned.serialized).toString('hex')
                         log.debug(tag,"txid: ",txid)
                         txSigned.txid = "0x"+txid
                         break;
@@ -979,14 +983,14 @@ export class SDK {
                         //sequence inject for thorchain
                         txSigned.signatures[0].sequence = unsignedTx.sequence.toString()
 
-                        let broadcastString = {
+                        broadcastString = {
                             tx:txSigned,
                             // sequence:txSigned.sequence,
                             // account_number:txSigned.account_number,
                             type:"cosmos-sdk/StdTx",
                             mode:"sync"
                         }
-                        let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                        //let buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
                         //TODO FIXME
                         //txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
 
@@ -994,6 +998,27 @@ export class SDK {
                         txSigned.serializedTx = JSON.stringify(broadcastString)
                         //txSigned.txid = "TODO"
 
+                        break;
+                    case 'cosmos':
+                        txSigned = await this.wallet.cosmosSignTx(unsignedTx)
+                        log.info(tag,"txSigned: ",txSigned)
+
+                        let txFinal:any
+                        txFinal = txSigned
+                        txFinal.signatures = txSigned.signatures
+
+                        log.debug("FINAL: ****** ",txFinal)
+
+                        broadcastString = {
+                            tx:txFinal,
+                            type:"cosmos-sdk/StdTx",
+                            mode:"sync"
+                        }
+                        const buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                        txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
+
+                        txSigned.txid = txid
+                        txSigned.serialized = JSON.stringify(broadcastString)
                         break;
                     default:
                         throw Error("blockchain not supported! blockchain: "+blockchain)

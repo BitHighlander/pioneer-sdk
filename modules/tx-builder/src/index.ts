@@ -29,6 +29,11 @@ let {
 const HD_RUNE_KEYPATH="m/44'/931'/0'/0/0"
 const RUNE_CHAIN="thorchain-mainnet-v1"
 const RUNE_BASE=100000000
+const HD_ATOM_KEYPATH="m/44'/118'/0'/0/0"
+const ATOM_CHAIN="cosmoshub-4"
+const ATOM_BASE=1000000
+let GIG =  1000000000
+const OSMO_CHAIN="osmosis-1"
 
 export class TxBuilder {
     private pioneer: any
@@ -359,6 +364,19 @@ export class TxBuilder {
                 log.debug(tag,"tx: ",tx)
 
                 let unsignedTx:any
+                let unsigned:any
+                let addressFrom:string
+                let addressTo:string
+                let masterInfo:any
+                let amountNative:any
+                let sequence:any
+                let account_number:any
+                let txType:any
+                let gas:any
+                let fee:any
+                let memo:any
+                let chain_id:any
+
                 const expr = tx.blockchain;
                 switch (expr) {
                     case 'bitcoin':
@@ -427,7 +445,7 @@ export class TxBuilder {
                         if(!toAddress) throw Error("invalid tx missing toAddress")
 
                         // @ts-ignore Generic Transaction type incorrect
-                        let memo = null
+                        memo = null
                         if(tx.memo) {
                             memo = tx.memo
                         }
@@ -684,33 +702,33 @@ export class TxBuilder {
                         break
                     case 'thorchain':
 
-                        let amountNative = baseAmountToNative(tx.asset,tx.amount)
+                        amountNative = baseAmountToNative(tx.asset,tx.amount)
                         log.debug(tag,"amountNative: ",amountNative)
 
                         log.info(tag,"tx: ",tx)
                         //get account number
-                        let addressFrom = tx.pubkey.address || tx.pubkey.master
+                        addressFrom = tx.pubkey.address || tx.pubkey.master
                         log.info(tag,"addressFrom: ",addressFrom)
                         if(!addressFrom) throw Error("Missing, addressFrom!")
                         if(!tx.toAddress) throw Error("Missing, toAddress!")
 
-                        let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
+                        masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
                         masterInfo = masterInfo.data
                         log.info(tag,"masterInfo: ",masterInfo.data)
 
-                        let sequence = masterInfo.result.value.sequence || 0
-                        let account_number = masterInfo.result.value.account_number
+                        sequence = masterInfo.result.value.sequence || 0
+                        account_number = masterInfo.result.value.account_number
                         sequence = parseInt(sequence)
                         sequence = sequence.toString()
                         log.info(tag,"sequence: ",sequence)
 
-                        let txType = "thorchain/MsgSend"
-                        let gas = "650000" //@TODO allow custom
-                        let fee = "0" //@TODO allow custom
+                        txType = "thorchain/MsgSend"
+                        gas = "650000" //@TODO allow custom
+                        fee = "0" //@TODO allow custom
                         let memoThorchain = tx.memo || ""
 
                         //sign tx
-                        let unsigned = {
+                        unsigned = {
                             "fee": {
                                 "amount": [
                                     {
@@ -741,7 +759,7 @@ export class TxBuilder {
                             "signatures": null
                         }
 
-                        let	chain_id = RUNE_CHAIN
+                        chain_id = RUNE_CHAIN
 
                         if(!sequence) throw Error("112: Failed to get sequence")
                         if(!account_number) account_number = 0
@@ -754,6 +772,136 @@ export class TxBuilder {
                             tx: unsigned,
                         }
                         unsignedTx = runeTx
+                        break
+                    case 'cosmos':
+                        addressFrom = tx.pubkey.address || tx.pubkey.master
+                        log.info(tag,"addressFrom: ",addressFrom)
+                        if(!addressFrom) throw Error("Missing, addressFrom!")
+                        if(!tx.toAddress) throw Error("Missing, toAddress!")
+                        //get amount native
+                        amountNative = baseAmountToNative(tx.asset,tx.amount)
+                        log.debug(tag,"amountNative: ",amountNative)
+
+                        //get account number
+                        log.debug(tag,"addressFrom: ",addressFrom)
+                        masterInfo = await this.pioneer.instance.GetAccountInfo({network:'ATOM',address:addressFrom})
+                        masterInfo = masterInfo.data
+                        log.debug(tag,"masterInfo: ",masterInfo.data)
+
+                        sequence = masterInfo.result.value.sequence
+                        account_number = masterInfo.result.value.account_number
+                        sequence = parseInt(sequence)
+                        sequence = sequence.toString()
+
+                        txType = "cosmos-sdk/MsgSend"
+                        gas = "100000"
+                        fee = "1000"
+                        memo = tx.memo || ""
+
+                        //sign tx
+                        unsigned = {
+                            "fee": {
+                                "amount": [
+                                    {
+                                        "amount": fee,
+                                        "denom": "uatom"
+                                    }
+                                ],
+                                "gas": gas
+                            },
+                            "memo": memo,
+                            "msg": [
+                                {
+                                    "type": txType,
+                                    "value": {
+                                        "amount": [
+                                            {
+                                                "amount": amountNative.toString(),
+                                                "denom": "uatom"
+                                            }
+                                        ],
+                                        "from_address": addressFrom,
+                                        "to_address": tx.toAddress
+                                    }
+                                }
+                            ],
+                            "signatures": null
+                        }
+
+                        chain_id = ATOM_CHAIN
+
+                        if(!sequence) throw Error("112: Failed to get sequence")
+                        if(!account_number) throw Error("113: Failed to get account_number")
+
+                        //if(fromAddress !== addressFrom) throw Error("Can not sign, address mismatch")
+                        let atomTx = {
+                            addressNList: bip32ToAddressNList(HD_ATOM_KEYPATH),
+                            chain_id,
+                            account_number: account_number,
+                            sequence:sequence,
+                            tx: unsigned,
+                        }
+
+                        unsignedTx = atomTx
+                        break
+                    case 'binance':
+                        addressFrom = tx.pubkey.address || tx.pubkey.master
+                        log.info(tag,"addressFrom: ",addressFrom)
+                        if(!addressFrom) throw Error("Missing, addressFrom!")
+                        if(!tx.toAddress) throw Error("Missing, toAddress!")
+                        //get amount native
+                        amountNative = baseAmountToNative(tx.asset,tx.amount)
+                        log.debug(tag,"amountNative: ",amountNative)
+
+                        //get account number
+                        log.debug(tag,"addressFrom: ",addressFrom)
+                        masterInfo = await this.pioneer.instance.GetAccountInfo({network:'BNB',address:addressFrom})
+                        masterInfo = masterInfo.data
+                        log.info(tag,"masterInfo: ",masterInfo)
+
+                        sequence = masterInfo.result.value.sequence
+                        account_number = masterInfo.result.value.account_number
+                        sequence = parseInt(sequence)
+                        sequence = sequence.toString()
+
+                        memo = tx.memo || ""
+
+                        let bnbTx = {
+                            "account_number": account_number,
+                            "chain_id": "Binance-Chain-Nile",
+                            "data": null,
+                            "memo": memo,
+                            "msgs": [
+                                {
+                                    "inputs": [
+                                        {
+                                            "address": addressFrom,
+                                            "coins": [
+                                                {
+                                                    "amount": "0",
+                                                    "denom": "BNB"
+                                                }
+                                            ]
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "address": tx.toAddress,
+                                            "coins": [
+                                                {
+                                                    "amount": amountNative,
+                                                    "denom": "BNB"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ],
+                            "sequence": sequence,
+                            "source": "1"
+                        }
+
+                        unsignedTx = bnbTx
                         break
                     default:
                         throw Error("unhandled! transfer: "+expr)
