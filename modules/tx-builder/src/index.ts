@@ -404,7 +404,7 @@ export class TxBuilder {
                         //@TODO use blockchain not symbol you doof
                         let unspentInputs = await this.pioneer.instance.ListUnspent({network:tx.pubkey.symbol,xpub:pubkey})
                         unspentInputs = unspentInputs.data
-                        // log.debug(tag,"***** WTF unspentInputs: ",unspentInputs)
+                        log.debug(tag,"***** WTF unspentInputs: ",unspentInputs)
 
                         //prepaire coinselect
                         let utxos = []
@@ -586,7 +586,8 @@ export class TxBuilder {
                                 if(tx.pubkey.symbol === 'BTC'){
                                     scriptType = core.BTCInputScriptType.SpendWitness
                                 }else if(tx.pubkey.symbol === 'BCH'){
-                                    scriptType = 'cashaddr'
+                                    scriptType = 'p2sh'
+                                    // scriptType = 'cashaddr'
                                 } else {
                                     scriptType = core.BTCInputScriptType.SpendAddress
                                 }
@@ -631,6 +632,7 @@ export class TxBuilder {
                             throw Error("World makes no sense WTF")
                         }
                         break;
+                    case 'avalanche':
                     case 'ethereum':
                         //#TODO handle erc20
                         log.debug('EVM Tx type');
@@ -680,6 +682,15 @@ export class TxBuilder {
                         let to = tx.toAddress
                         if(!to) throw Error("unable to to address!")
 
+                        let chainId
+                        if(tx.network === 'ETH'){
+                            chainId = 1
+                        } else if(tx.network === 'AVAX'){
+                            chainId = 43114
+                        } else{
+                            throw Error("Network not supported! network: "+tx.network)
+                        }
+
                         //sign
                         let ethTx = {
                             // addressNList: support.bip32ToAddressNList(masterPathEth),
@@ -694,8 +705,8 @@ export class TxBuilder {
                             gasPrice: numberToHex(gas_price),
                             gasLimit: numberToHex(gas_limit),
                             value:numberToHex(value),
-                            to
-                            // chainId: 1,//TODO more networks
+                            to,
+                            chainId
                         }
 
                         unsignedTx = ethTx
@@ -859,15 +870,18 @@ export class TxBuilder {
                         masterInfo = masterInfo.data
                         log.info(tag,"masterInfo: ",masterInfo)
 
-                        sequence = masterInfo.result.value.sequence
-                        account_number = masterInfo.result.value.account_number
-                        sequence = parseInt(sequence)
-                        sequence = sequence.toString()
+                        sequence = masterInfo.sequence.toString()
+                        account_number = masterInfo.account_number.toString()
+                        if(account_number === "0") throw Error("Can NOT send! this account has never received any BNB! no account_number known!")
+                        log.info(tag,"sequence: ",sequence)
+                        log.info(tag,"account_number: ",account_number)
+                        if(!sequence) throw Error("Failed to get BNB sequence!")
+                        if(!account_number) throw Error("Failed to get BNB account_number!")
 
                         memo = tx.memo || ""
 
                         let bnbTx = {
-                            "account_number": account_number,
+                            account_number,
                             "chain_id": "Binance-Chain-Nile",
                             "data": null,
                             "memo": memo,
@@ -878,7 +892,7 @@ export class TxBuilder {
                                             "address": addressFrom,
                                             "coins": [
                                                 {
-                                                    "amount": "0",
+                                                    "amount": amountNative,
                                                     "denom": "BNB"
                                                 }
                                             ]
@@ -898,10 +912,16 @@ export class TxBuilder {
                                 }
                             ],
                             "sequence": sequence,
-                            "source": "1"
+                            "source": "0"
                         }
-
-                        unsignedTx = bnbTx
+                        
+                        unsignedTx = {
+                            addressNList: bip32ToAddressNList(`m/44'/714'/0'/0/0`),
+                            chain_id: "Binance-Chain-Nile",
+                            account_number: account_number,
+                            sequence: sequence,
+                            tx: bnbTx,
+                        }
                         break
                     default:
                         throw Error("unhandled! transfer: "+expr)
@@ -917,23 +937,7 @@ export class TxBuilder {
             try {
                 let txUnsigned = await this.transfer(tx)
                 log.debug(tag,"txUnsigned: final ",txUnsigned)
-
-                //TODO moar?
-                // let txUnsigned:any
-                // const expr = tx.type;
-                // switch (expr) {
-                //     case 'swap':
-                //         txUnsigned = await this.transfer(tx)
-                //         log.debug(tag,"txUnsigned: final ",txUnsigned)
-                //         break;
-                //     case 'transfer':
-                //         txUnsigned = await this.transfer(tx)
-                //         log.debug(tag,"txUnsigned: final ",txUnsigned)
-                //         break;
-                //     default:
-                //         throw Error("type not supported! type"+expr)
-                // }
-                
+                if(!txUnsigned) throw Error("Failed to build unsignedTx!")
                 return txUnsigned
             } catch (e) {
                 log.error(tag, "e: ", e)

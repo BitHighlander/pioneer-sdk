@@ -961,6 +961,8 @@ export class SDK {
                 let txSigned:any
                 let broadcastString:any
                 let txid:any
+                let txFinal:any
+                let buffer:any
 
                 log.info(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                 switch (blockchain) {
@@ -999,11 +1001,20 @@ export class SDK {
                         //txSigned.txid = "TODO"
 
                         break;
+                    case 'binance':
+                        txSigned = await this.wallet.binanceSignTx(unsignedTx)
+                        log.info(tag,"txSigned: ",txSigned)
+                        
+                        buffer = Buffer.from(JSON.stringify(txSigned.serialized), 'base64');
+                        txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
+
+                        txSigned.txid = txid
+                        txSigned.serialized = txSigned.serialized
+                        break;
                     case 'cosmos':
                         txSigned = await this.wallet.cosmosSignTx(unsignedTx)
                         log.info(tag,"txSigned: ",txSigned)
 
-                        let txFinal:any
                         txFinal = txSigned
                         txFinal.signatures = txSigned.signatures
 
@@ -1014,7 +1025,7 @@ export class SDK {
                             type:"cosmos-sdk/StdTx",
                             mode:"sync"
                         }
-                        const buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                        buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
                         txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
 
                         txSigned.txid = txid
@@ -1392,7 +1403,8 @@ export class SDK {
                 //get balance
                 let balances = this.balances.filter((e:any) => e.symbol === tx.asset)[0]
                 log.debug(tag,"*** balances: ",balances)
-                
+                if(!balances) throw Error("No balance found for asset: "+tx.asset)
+
                 //balances
                 if(balances.length === 0){
                     throw Error("No balance found for asset! asset"+tx.asset)
@@ -1409,6 +1421,7 @@ export class SDK {
                 let transferTx = {
                     type:"transfer",
                     blockchain:tx.blockchain,
+                    network:tx.asset,
                     asset:tx.asset,
                     toAddress:tx.address,
                     amount:tx.amount,
