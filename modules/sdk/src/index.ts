@@ -359,26 +359,27 @@ export class SDK {
                 
                 //TODO error if server is offline
                 let pubkeys = await this.getPubkeys()
-                log.info(tag,"pubkeys: ",pubkeys)
-                log.info(tag,"this.pubkeys: ",this.pubkeys)
-
-                //make sure pubkeys got keys for all enabled assets
-                //unique
-                pubkeys = [ ...new Set(pubkeys)]
-                log.info(tag,"pubkeyChains: ",pubkeys)
-                log.info(tag,"pubkeyChains: ",pubkeys.length)
-                log.info(tag,"blockchains: ",this.blockchains.length)
-                log.info(tag,"blockchains: ",this.blockchains)
-                //get missing
-                let missingBlockchains = pubkeys
-                    .filter((x: any) => !this.blockchains.includes(x))
-                    .concat(this.blockchains.filter((x: any) => !pubkeys.includes(x)));
-                log.info(tag,"missingBlockchains: ",missingBlockchains)
-
-                if(missingBlockchains.length > 0) {
-                    log.error(tag,"missingBlockchains: ",missingBlockchains)
-                    throw Error("Failed to generate pubkeys!")
-                }
+                // pubkeys = pubkeys.pubkeys
+                // log.info(tag,"pubkeys: ",pubkeys)
+                // log.info(tag,"this.pubkeys: ",this.pubkeys)
+                //
+                // //make sure pubkeys got keys for all enabled assets
+                // //unique
+                // pubkeys = [ ...new Set(pubkeys)]
+                // log.info(tag,"pubkeyChains: ",pubkeys)
+                // log.info(tag,"pubkeyChains: ",pubkeys.length)
+                // log.info(tag,"blockchains: ",this.blockchains.length)
+                // log.info(tag,"blockchains: ",this.blockchains)
+                // //get missing
+                // let missingBlockchains = pubkeys
+                //     .filter((x: any) => !this.blockchains.includes(x))
+                //     .concat(this.blockchains.filter((x: any) => !pubkeys.includes(x)));
+                // log.info(tag,"missingBlockchains: ",missingBlockchains)
+                //
+                // if(missingBlockchains.length > 0) {
+                //     log.error(tag,"missingBlockchains: ",missingBlockchains)
+                //     throw Error("Failed to generate pubkeys!")
+                // }
                 // if(pubkeys.pubkeys) this.pubkeys = pubkeys.pubkeys
 
                 //register
@@ -413,7 +414,7 @@ export class SDK {
                 // }
                 
                 //TODO this needed?
-                this.events.pair(this.username)
+                // this.events.pair(this.username)
                 
 
 
