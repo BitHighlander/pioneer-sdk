@@ -23,15 +23,15 @@ let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'ethereum'
 let BLOCKCHAIN_OUTPUT = 'bitcoin'
-let ASSET = 'ETH'
+let ASSET = 'AVAX'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
-let TRADE_PAIR  = "ETH_BTC"
-let INPUT_ASSET = ASSET
-let OUTPUT_ASSET = "BTC"
+// let TRADE_PAIR  = "ETH_BTC"
+// let INPUT_ASSET = ASSET
+// let OUTPUT_ASSET = "BTC"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
@@ -43,8 +43,12 @@ console.log("spec: ",spec)
 console.log("wss: ",wss)
 
 let blockchains = [
-    'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin','osmosis'
+    'avalanche'
 ]
+
+// let blockchains = [
+//     'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin','osmosis'
+// ]
 
 let txid:string
 
@@ -125,32 +129,32 @@ const test_service = async function () {
         
         //add custom path
         let paths:any = [
-            {
-                note:"Bitcoin account Native Segwit (Bech32)",
-                blockchain: 'bitcoin',
-                symbol: 'BTC',
-                network: 'BTC',
-                script_type:"p2wpkh", //bech32
-                available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
-                type:"zpub",
-                addressNList: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0],
-                addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
-                curve: 'secp256k1',
-                showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
-            },
-            {
-                note:"Bitcoin account Native Segwit (Bech32) on WRONG path (extraction)",
-                blockchain: 'bitcoin',
-                symbol: 'BTC',
-                network: 'BTC',
-                script_type:"p2wpkh", //bech32
-                available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
-                type:"zpub",
-                addressNList: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0],
-                addressNListMaster: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
-                curve: 'secp256k1',
-                showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
-            }
+            // {
+            //     note:"Bitcoin account Native Segwit (Bech32)",
+            //     blockchain: 'bitcoin',
+            //     symbol: 'BTC',
+            //     network: 'BTC',
+            //     script_type:"p2wpkh", //bech32
+            //     available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
+            //     type:"zpub",
+            //     addressNList: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0],
+            //     addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
+            //     curve: 'secp256k1',
+            //     showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
+            // },
+            // {
+            //     note:"Bitcoin account Native Segwit (Bech32) on WRONG path (extraction)",
+            //     blockchain: 'bitcoin',
+            //     symbol: 'BTC',
+            //     network: 'BTC',
+            //     script_type:"p2wpkh", //bech32
+            //     available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
+            //     type:"zpub",
+            //     addressNList: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0],
+            //     addressNListMaster: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
+            //     curve: 'secp256k1',
+            //     showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
+            // }
         ]
         
         let config:any = {
@@ -172,7 +176,10 @@ const test_service = async function () {
 
         //verify paths
         log.info(tag,"paths: ",app.paths.length)
-        // log.info(tag,"paths: ",app.paths)
+        log.info(tag,"blockchains: ",blockchains.length)
+        log.info(tag,"blockchains: ",blockchains)
+        log.info(tag,"paths: ",app.paths)
+        assert(app.paths.length === blockchains.length)
 
         //get HDwallet
         let wallet = await start_keepkey_controller()
@@ -181,8 +188,27 @@ const test_service = async function () {
 
 
         // //init with HDwallet
-        let result = await app.init()
+        let result = await app.init(wallet)
         // log.info(tag,"result: ",result)
+
+        //path
+        log.info(tag,"ASSET: ",ASSET)
+        let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        log.info("path: ",path)
+        log.info("app.paths: ",app.paths)
+        assert(path[0])
+
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        log.info("pubkey: ",pubkey)
+        log.info("app.pubkeys: ",app.pubkeys)
+        assert(pubkey[0])
+
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
 
         //pair wallet
         if(!app.isConnected){

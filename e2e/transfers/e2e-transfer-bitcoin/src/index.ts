@@ -164,6 +164,25 @@ const test_service = async function () {
         log.info(tag,"pubkeys: ",app.pubkeys.length)
         log.info(tag,"balances: ",app.balances.length)
 
+        //blockchain
+        if(app.blockchains.indexOf(BLOCKCHAIN) === -1) throw Error("Blockchain not enabled! "+BLOCKCHAIN)
+
+        //path
+        let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        log.info("path: ",path)
+        assert(path[0])
+
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        log.info("pubkey: ",pubkey)
+        assert(pubkey[0])
+
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
+        
         // let send = {
         //     blockchain:BLOCKCHAIN,
         //     asset:ASSET,

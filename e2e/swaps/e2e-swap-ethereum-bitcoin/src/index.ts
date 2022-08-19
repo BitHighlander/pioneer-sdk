@@ -37,7 +37,6 @@ let OUTPUT_ASSET = "BTC"
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
 
-
 let noBroadcast = false
 
 console.log("spec: ",spec)
@@ -52,7 +51,9 @@ let txid:string
 let IS_SIGNED: boolean
 
 let invocationId:string
-//let invocationId = '01f3ef7e-3577-4f13-b31b-4a1c69546d12'
+//let invocationId = 'd1b7ef38-602b-434e-8a29-28df2543eca0'
+
+let FLAG_RBF=true
 
 const start_keepkey_controller = async function(){
     try{
@@ -172,6 +173,7 @@ const test_service = async function () {
                 amount:TEST_AMOUNT,
                 noBroadcast:true
             }
+            if(FLAG_RBF) swap.replace = true
             log.info(tag,"swap: ",swap)
 
             let tx = {
@@ -222,6 +224,8 @@ const test_service = async function () {
             let invocationInfo = await app.getInvocation(invocationId)
             log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
             log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+            log.info(tag,"txid: (VIEW): ",invocationInfo.signedTx.txid)
+            log.info(tag,"depositUrl: (VIEW): ",invocationInfo.depositUrl)
 
             if(invocationInfo && invocationInfo.isConfirmed){
                 log.test(tag,"Confirmed!")
@@ -242,8 +246,9 @@ const test_service = async function () {
             await sleep(6000)
             let invocationInfo = await app.getInvocation(invocationId)
             log.test(tag,"invocationInfo: ",invocationInfo.state)
+            log.test(tag,"invocationInfo: ",invocationInfo.withdrawalUrl)
 
-            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled) {
+            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled && invocationInfo.withdrawalUrl) {
                 log.test(tag,"is fullfilled!")
                 fullfillmentTxid = invocationInfo.fullfillmentTxid
                 isFullfilled = true

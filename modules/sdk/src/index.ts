@@ -121,6 +121,7 @@ export class SDK {
     public getInvocation: (invocationId: string) => Promise<any>;
     public getInvocations: () => Promise<any>;
     public stopSocket: () => any;
+    public isSynced: boolean;
     constructor(spec:string,config:any) {
         this.status = 'preInit'
         this.apiVersion = ""
@@ -137,11 +138,11 @@ export class SDK {
         this.pubkeys = []
         this.markets = {}
         this.events = {}
+        this.isSynced = false
         this.isPaired = false
         this.isConnected = false
         this.context = ""
         this.contexts = []
-        this.pubkeys = []
         this.invocations = []
         this.balances = []
         this.markets = {}
@@ -163,7 +164,6 @@ export class SDK {
                 if(!this.username) throw Error("username required!")
                 if(!this.queryKey) throw Error("queryKey required!")
                 if(!this.wss) throw Error("wss required!")
-                await this.startSocket()
 
                 //wallet
                 if(wallet) {
@@ -220,9 +220,39 @@ export class SDK {
                 let userInfo = await this.pioneer.instance.User()
                 userInfo = userInfo.data
                 this.user = userInfo
-                log.debug(tag,"user: ",userInfo)
+                log.info(tag,"user: ",userInfo)
 
-                //TODO verify ETH address match
+                if(userInfo && userInfo.pubkeys){
+                    log.debug(tag,"Validating pubkeys!: ",userInfo)
+                    //verify 1 path for each blockchain enabled
+                    let pubkeyChains:any = []
+                    for(let i = 0; i < userInfo.pubkeys.length; i++) {
+                        let pubkey = userInfo.pubkeys[i]
+                        if (this.blockchains.indexOf(pubkey.blockchain) >= 0) {
+                            pubkeyChains.push(pubkey.blockchain)
+                            this.pubkeys.push(pubkey)
+                        }
+                    }
+                    //unique
+                    pubkeyChains = [ ...new Set(pubkeyChains)]
+                    log.info(tag,"pubkeyChains: ",pubkeyChains)
+                    log.info(tag,"pubkeyChains: ",pubkeyChains.length)
+                    log.info(tag,"blockchains: ",this.blockchains.length)
+                    log.info(tag,"blockchains: ",this.blockchains)
+                    //get missing
+                    let missingBlockchains = pubkeyChains
+                        .filter((x: any) => !this.blockchains.includes(x))
+                        .concat(this.blockchains.filter((x: any) => !pubkeyChains.includes(x)));
+                    log.info(tag,"missingBlockchains: ",missingBlockchains)
+                    //register missing
+                    if(missingBlockchains.length > 0 && wallet){
+                        if(wallet){
+                            await this.pairWallet(wallet)
+                        } else {
+                            log.error("Missing pubkey info for blockchain! and wallet not paired! unable to sync")
+                        }
+                    }
+                }
 
                 if(!userInfo || userInfo.error || userInfo?.balances.length === 0) {
                     //no wallets paired
@@ -231,9 +261,30 @@ export class SDK {
                         await this.pairWallet(wallet)
                     }
                 } else if(userInfo.balances.length > 0) {
+                    await this.startSocket()
                     log.debug(tag,"CACHE FOUND! userInfo: ",userInfo.context)
                     log.debug(tag,"user pubkeys: ",userInfo.pubkeys.length)
                     log.debug(tag,"user balances: ",userInfo.balances.length)
+                    //this.pubkeys = userInfo.pubkeys
+                    //@TODO verify ETH address match
+
+                    //verify paths length and pubkeys length match
+                    // log.info(tag,"length pubkeys: ",userInfo.pubkeys.length)
+                    log.info(tag,"length paths: ",this.paths.length)
+                    // log.info(tag,"pubkeys: ",userInfo.pubkeys)
+                    log.info(tag,"this.paths: ",this.paths)
+                    
+                    //verify paths and pubkeys length
+                    // if(userInfo.pubkeys.length ==! this.paths.length){
+                    //     if(wallet){
+                    //         await this.pairWallet(wallet)
+                    //     } else {
+                    //         //
+                    //         log.error(tag,"Wallet is out of date! please connect for pubkey sync!")
+                    //     }
+                    // }
+
+                    //else register missing pubkeys
 
                     //get available inputs (blockchains with balances)
                     this.availableInputs = userInfo.balances
@@ -255,9 +306,8 @@ export class SDK {
                     //this.isPaired = true
                     this.isPaired = true
                     this.balances = userInfo.balances
-                    if(userInfo.pubkeys)this.pubkeys = userInfo.pubkeys
+                    // if(userInfo.pubkeys)this.pubkeys = userInfo.pubkeys
                     if(userInfo.wallets)this.wallets = userInfo.wallets
-                    this.pubkeys = userInfo.pubkeys
                     this.ibcChannels = userInfo.ibcChannels
                     this.nfts = userInfo.nfts
                     this.paymentStreams = userInfo.paymentStreams
@@ -277,6 +327,7 @@ export class SDK {
         this.pairWallet = async function (wallet:any) {
             let tag = TAG + " | pairWallet | "
             try {
+                log.debug(tag,"CHECKPOINT")
                 if(!wallet) throw Error("Must have wallet to pair!")
                 if(!this.blockchains) throw Error("Must have blockchains to pair!")
                 if(!this.username) throw Error("Must have username to pair!")
@@ -310,38 +361,56 @@ export class SDK {
                 let pubkeys = await this.getPubkeys()
                 log.info(tag,"pubkeys: ",pubkeys)
                 log.info(tag,"this.pubkeys: ",this.pubkeys)
-                // if(pubkeys.pubkeys) this.pubkeys = pubkeys.pubkeys
-                
-                
-                
-                //if wallet not registerd
-                if(this.balances.length === 0){
-                    
-                    //register
-                    let register = {
-                        username:this.username,
-                        blockchains:this.blockchains,
-                        context:pubkeys.context,
-                        walletDescription:{
-                            context:pubkeys.context,
-                            type:'keepkey'
-                        },
-                        data:{
-                            pubkeys:pubkeys.pubkeys
-                        },
-                        queryKey:this.queryKey,
-                        auth:'lol',
-                        provider:'lol'
-                    }
-                    log.debug(tag,"register payload: ",register)
-                    let result = await this.pioneer.instance.Register(null, register)
-                    log.debug(tag,"register result: ",result)
-                    result = result.data
 
-                    //get user
-                    await this.updateContext()
-                    //TODO verify user?
+                //make sure pubkeys got keys for all enabled assets
+                //unique
+                pubkeys = [ ...new Set(pubkeys)]
+                log.info(tag,"pubkeyChains: ",pubkeys)
+                log.info(tag,"pubkeyChains: ",pubkeys.length)
+                log.info(tag,"blockchains: ",this.blockchains.length)
+                log.info(tag,"blockchains: ",this.blockchains)
+                //get missing
+                let missingBlockchains = pubkeys
+                    .filter((x: any) => !this.blockchains.includes(x))
+                    .concat(this.blockchains.filter((x: any) => !pubkeys.includes(x)));
+                log.info(tag,"missingBlockchains: ",missingBlockchains)
+
+                if(missingBlockchains.length > 0) {
+                    log.error(tag,"missingBlockchains: ",missingBlockchains)
+                    throw Error("Failed to generate pubkeys!")
                 }
+                // if(pubkeys.pubkeys) this.pubkeys = pubkeys.pubkeys
+
+                //register
+                let register = {
+                    username:this.username,
+                    blockchains:this.blockchains,
+                    context:pubkeys.context,
+                    walletDescription:{
+                        context:pubkeys.context,
+                        type:'keepkey'
+                    },
+                    data:{
+                        pubkeys:pubkeys.pubkeys
+                    },
+                    queryKey:this.queryKey,
+                    auth:'lol',
+                    provider:'lol'
+                }
+                log.debug(tag,"register payload: ",register)
+                let result = await this.pioneer.instance.Register(null, register)
+                log.debug(tag,"register result: ",result)
+                result = result.data
+
+                //get user
+                await this.updateContext()
+                //TODO verify user?
+
+                //if wallet not registered OR any missing keys for current blockchain
+                // if(this.balances.length === 0 || true){
+                //
+                //
+                // }
                 
                 //TODO this needed?
                 this.events.pair(this.username)
@@ -486,11 +555,30 @@ export class SDK {
                 userInfo = userInfo.data
                 log.debug(tag,"userInfo: ",userInfo)
 
+                //validate user
+                let pubkeyChains:any = []
+                for(let i = 0; i < userInfo.pubkeys.length; i++){
+                    let pubkey = userInfo.pubkeys[i]
+                    pubkeyChains.push(pubkey.blockchain)
+                }
+                //unique
+                pubkeyChains = [ ...new Set(pubkeyChains)]
+                log.debug(tag,"pubkeyChains: ",pubkeyChains)
+                log.debug(tag,"pubkeyChains: ",pubkeyChains.length)
+                log.debug(tag,"blockchains: ",this.blockchains.length)
+                log.debug(tag,"blockchains: ",this.blockchains)
+                //get missing
+                let missingBlockchains = pubkeyChains
+                    .filter((x: any) => !this.blockchains.includes(x))
+                    .concat(this.blockchains.filter((x: any) => !pubkeyChains.includes(x)));
+                log.info(tag,"missingBlockchains: ",missingBlockchains)
+                //@TODO is missing chains, repair?
+
                 if(userInfo.username)this.username = userInfo.username
                 if(userInfo.context)this.context = userInfo.context
                 if(userInfo.wallets)this.wallets = userInfo.wallets
                 if(userInfo.balances)this.balances = userInfo.balances
-                if(userInfo.pubkeys && this.pubkeys.length < userInfo.pubkeys.length)this.pubkeys = userInfo.pubkeys
+                // if(userInfo.pubkeys && this.pubkeys.length < userInfo.pubkeys.length)this.pubkeys = userInfo.pubkeys
                 if(userInfo.totalValueUsd)this.totalValueUsd = parseFloat(userInfo.totalValueUsd)
                 if(userInfo.invocationContext)this.invocationContext = userInfo.invocationContext
                 if(userInfo.assetContext)this.assetContext = userInfo.assetContext
@@ -611,7 +699,7 @@ export class SDK {
                         pubkey.pubkey = zpub
                     }
                     //TODO get this from supported coins? DRY
-                    if(pubkey.symbol === 'ETH' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
+                    if(pubkey.symbol === 'ETH' || pubkey.symbol === 'AVAX' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
                         pubkey.pubkey = result[i].xpub
                     }
                     normalized.note = pubkey.note
@@ -697,7 +785,8 @@ export class SDK {
                         throw Error("address master required for valid pubkey")
                     }
                     normalized.script_type = pubkey.script_type //TODO select script type?
-                    if(pubkey.symbol === 'ETH' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
+                    //@TODO move this to pioneer-coins funtion! is_address is_xpub
+                    if(pubkey.symbol === 'ETH' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO' || pubkey.symbol === 'AVAX'){
                         normalized.type = "address"
                         normalized.pubkey = address
                     }
@@ -709,7 +798,7 @@ export class SDK {
                 }
                 log.debug(tag,"pubkeys:",pubkeys)
                 output.pubkeys = pubkeys
-                this.pubkeys = pubkeys
+                // this.pubkeys = pubkeys
                 if(pubkeys.length !== result.length) {
                     log.error(tag, {pathsKeepkey})
                     log.error(tag, {result})
@@ -786,7 +875,7 @@ export class SDK {
             let tag = TAG + " | getAddress | "
             try {
                 let pubkeys = this.pubkeys.filter((e:any) => e.symbol === asset)
-                log.info(tag,"pubkeys: ",pubkeys)
+                log.debug(tag,"pubkeys: ",pubkeys)
                 let selected
                 let selectedBalance = 0
                 if(pubkeys.length === 1){
@@ -798,8 +887,9 @@ export class SDK {
                         let balance = this.balances.filter((e:any) => e.pubkey === pubkey.pubkey)[0]
 
                         //get balance on pubkey
-                        log.info(tag,"balance: ",balance)
-                        log.info(tag,"balance: ",balance.balance)
+                        log.debug(tag,"balance: ",balance)
+                        log.debug(tag,"balance: ",balance.balance)
+
                         if(balance.balance > selectedBalance){
                             selectedBalance = balance.balance
                             selected = pubkey
@@ -832,8 +922,8 @@ export class SDK {
                         let balance = this.balances.filter((e:any) => e.pubkey === pubkey.pubkey)[0]
 
                         //get balance on pubkey
-                        log.info(tag,"balance: ",balance)
-                        log.info(tag,"balance: ",balance.balance)
+                        log.debug(tag,"balance: ",balance)
+                        log.debug(tag,"balance: ",balance.balance)
                         if(balance.balance > selectedBalance){
                             selectedBalance = balance.balance
                             selected = pubkey
@@ -893,8 +983,8 @@ export class SDK {
                         //handle error
                         if(!quote.success){
                             //verbose error handling
-                            log.info(tag,"verbose error: ",JSON.stringify(quote))
-                            log.info(tag,"verbose error: ",quote)
+                            log.error(tag,"verbose error: ",JSON.stringify(quote))
+                            log.error(tag,"verbose error: ",quote)
                             throw Error("Failed to Create quote! unable to find a swap route! try again later.")
                         }
                         log.debug(tag,"result: ",result)
@@ -972,6 +1062,7 @@ export class SDK {
                     case 'dogecoin':
                         txSigned = await this.wallet.btcSignTx(unsignedTx)
                         break;
+                    case 'avalanche':
                     case 'ethereum':
                         txSigned = await this.wallet.ethSignTx(unsignedTx)
                         txid = keccak256(txSigned.serialized).toString('hex')
@@ -1015,21 +1106,21 @@ export class SDK {
                         txSigned = await this.wallet.cosmosSignTx(unsignedTx)
                         log.info(tag,"txSigned: ",txSigned)
 
-                        txFinal = txSigned
-                        txFinal.signatures = txSigned.signatures
-
-                        log.debug("FINAL: ****** ",txFinal)
-
-                        broadcastString = {
-                            tx:txFinal,
-                            type:"cosmos-sdk/StdTx",
-                            mode:"sync"
-                        }
-                        buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
-                        txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
-
-                        txSigned.txid = txid
-                        txSigned.serialized = JSON.stringify(broadcastString)
+                        // txFinal = txSigned
+                        // txFinal.signatures = txSigned.signatures
+                        //
+                        // log.debug("FINAL: ****** ",txFinal)
+                        //
+                        // broadcastString = {
+                        //     tx:txFinal,
+                        //     type:"cosmos-sdk/StdTx",
+                        //     mode:"sync"
+                        // }
+                        // buffer = Buffer.from(JSON.stringify(broadcastString), 'base64');
+                        // txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
+                        //
+                        // txSigned.txid = txid
+                        // txSigned.serialized = JSON.stringify(broadcastString)
                         break;
                     default:
                         throw Error("blockchain not supported! blockchain: "+blockchain)
@@ -1349,9 +1440,14 @@ export class SDK {
                     throw Error(transactionResponse.error)
                 }
                 let tx = transactionResponse.transaction
-
+                if(tx.blockChain){
+                    tx.network = tx.blockChain
+                }
                 let inputAsset = swap.input.asset
                 if(!inputAsset) throw Error("invalid invocation, missing swap input asset!")
+                
+                //rbf
+                if(swap.replace) tx.replace = true
                 
                 //if UTXO
                 if(tx.type === 'TRANSFER' && tx.method === 'transfer'){

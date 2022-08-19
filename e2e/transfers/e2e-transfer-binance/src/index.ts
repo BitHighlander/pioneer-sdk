@@ -27,8 +27,7 @@ let MIN_BALANCE = process.env['MIN_BALANCE_ETH'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.001"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-let FAUCET_ETH_ADDRESS = process.env['FAUCET_ETH_ADDRESS']
-let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
+let FAUCET_ADDRESS = process.env['FAUCET_BNB_ADDRESS']
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
@@ -134,6 +133,22 @@ const test_service = async function () {
         let result = await app.init(wallet)
         log.debug(tag,"result: ",result)
 
+        //path
+        let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        log.info("path: ",path)
+        assert(path[0])
+
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        log.info("pubkey: ",pubkey)
+        assert(pubkey[0])
+
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
+        
         let send = {
             blockchain:BLOCKCHAIN,
             asset:ASSET,

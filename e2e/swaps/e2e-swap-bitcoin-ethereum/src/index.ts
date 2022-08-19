@@ -50,9 +50,8 @@ let blockchains = [
 ]
 
 let txid:string
-let invocationId:string
-//87f5f8c4-b1d0-493a-950c-6d4e184f8b0a
-// let invocationId = "9a9cdf43-d852-4a01-bb0c-e9f6ea27ce4b"
+// let invocationId:string
+let invocationId = "8b15ee1f-c1ca-45a3-84f8-bd1804776d90"
 let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
@@ -223,26 +222,28 @@ const test_service = async function () {
             invocationId = await app.build(tx)
             log.info(tag, "invocationId: ", invocationId)
             assert(invocationId)
+
+            //get invocation
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.info(tag, "invocationInfo: ", invocationInfo)
+
+            //@TODO if no signedTx then sign again
+            let resultSign = await app.sign(invocationId)
+            log.info(tag,"resultSign: ",resultSign)
+
+
+            //@TODO if no broadcastInfo then broadcast again
+            //get txid
+            let payload = {
+                noBroadcast:false,
+                sync:true,
+                invocationId
+            }
+            let resultBroadcast = await app.broadcast(payload)
+            log.info(tag,"resultBroadcast: ",resultBroadcast)
         }
         assert(invocationId)
 
-        //get invocation
-        let invocationInfo = await app.getInvocation(invocationId)
-        log.info(tag, "invocationInfo: ", invocationInfo)
-
-        //sign
-        let resultSign = await app.sign(invocationId)
-        log.info(tag,"resultSign: ",resultSign)
-
-
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
 
 
 

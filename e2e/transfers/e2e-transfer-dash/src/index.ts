@@ -163,6 +163,22 @@ const test_service = async function () {
         log.info(tag,"pubkeys: ",app.pubkeys.length)
         log.info(tag,"balances: ",app.balances.length)
 
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        log.info("pubkey: ",pubkey)
+        assert(pubkey[0])
+
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
+
+        if(balance[0].balance <= TEST_AMOUNT) {
+            log.info(tag,"balance: ",balance[0].balance," TEST_AMOUNT: ",TEST_AMOUNT)
+            throw Error("Failed balance check! YOU ARE BROKE!")
+        }
+
         // let send = {
         //     blockchain:BLOCKCHAIN,
         //     asset:ASSET,

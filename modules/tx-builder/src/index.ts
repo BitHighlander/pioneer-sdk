@@ -159,6 +159,11 @@ export class TxBuilder {
                         let gas_price = await this.pioneer.instance.GetGasPrice()
                         gas_price = gas_price.data
 
+                        //priority
+                        log.info(tag,"gas_price: ",gas_price)
+                        gas_price =parseInt(gas_price) + 10000 //@TODO better buffer 10gwei!
+                        gas_price = gas_price.toString()
+                        
                         let nonce = nonceRemote // || override (for Replace manual Tx)
 
                         // @ts-ignore Generic Transaction type incorrect
@@ -176,6 +181,15 @@ export class TxBuilder {
                         // @ts-ignore
                         let data = tx.data
 
+                        let chainId
+                        if(tx.network === 'ETH' || tx.blockchain == 'ethereum'){
+                            chainId = 1
+                        } else if(tx.network === 'AVAX' || tx.blockchain == 'avalanche'){
+                            chainId = 43114
+                        } else{
+                            throw Error("Network not supported! network: "+tx.network)
+                        }
+
                         //sign
                         let ethTx = {
                             // addressNList: support.bip32ToAddressNList(masterPathEth),
@@ -192,7 +206,7 @@ export class TxBuilder {
                             value,
                             to,
                             data,
-                            // chainId: 1,//TODO more networks
+                            chainId
                         }
 
                         unsignedTx = ethTx
@@ -571,8 +585,9 @@ export class TxBuilder {
                             log.debug(tag,"outputInfo: ",outputInfo)
                             if(outputInfo.address){
                                 //not change
+                                if(tx.blockchain === 'bitcoincash') toAddress = "bitcoincash:"+toAddress
                                 let output = {
-                                    address:"bitcoincash:"+toAddress,
+                                    address:toAddress,
                                     addressType:"spend",
                                     // scriptType:core.BTCInputScriptType.SpendWitness,
                                     amount:String(outputInfo.value)
@@ -623,7 +638,11 @@ export class TxBuilder {
                                 // locktime: 0,
                             }
                             log.debug(tag,"hdwalletTxDescription: ",hdwalletTxDescription)
-                            if(memo) hdwalletTxDescription.opReturnData = memo
+                            if(memo) {
+                                hdwalletTxDescription.opReturnData = memo
+                            } else {
+                                hdwalletTxDescription.opReturnData = null
+                            }
                             log.info(tag,"memo: ",memo)
                             unsignedTx = hdwalletTxDescription
                             log.debug(tag,"unsignedTx pre: ",unsignedTx)
@@ -719,7 +738,7 @@ export class TxBuilder {
                         log.info(tag,"tx: ",tx)
                         //get account number
                         addressFrom = tx.pubkey.address || tx.pubkey.master
-                        log.info(tag,"addressFrom: ",addressFrom)
+                        //log.info(tag,"addressFrom: ",addressFrom)
                         if(!addressFrom) throw Error("Missing, addressFrom!")
                         if(!tx.toAddress) throw Error("Missing, toAddress!")
 
@@ -786,7 +805,7 @@ export class TxBuilder {
                         break
                     case 'cosmos':
                         addressFrom = tx.pubkey.address || tx.pubkey.master
-                        log.info(tag,"addressFrom: ",addressFrom)
+                        //log.info(tag,"addressFrom: ",addressFrom)
                         if(!addressFrom) throw Error("Missing, addressFrom!")
                         if(!tx.toAddress) throw Error("Missing, toAddress!")
                         //get amount native
@@ -836,7 +855,7 @@ export class TxBuilder {
                                     }
                                 }
                             ],
-                            "signatures": null
+                            "signatures": []
                         }
 
                         chain_id = ATOM_CHAIN

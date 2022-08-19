@@ -39,7 +39,7 @@ console.log("spec: ",spec)
 console.log("wss: ",wss)
 
 let blockchains = [
-    'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin','osmosis','avalanche'
+    'avalanche'
 ]
 
 let txid:string
@@ -133,14 +133,28 @@ const test_service = async function () {
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.debug(tag,"result: ",result)
+        log.info(tag,"result: ",result)
         assert(result)
 
-        let pubkey = app.pubkeys.filter((e:any) => e.symbol === "AVAX")
+        //pair wallet
+        if(!app.isConnected){
+            let resultPair = await app.pairWallet(wallet)
+            log.info(tag,"resultPair: ",resultPair)
+        }
+
+        //blockchain
+        if(app.blockchains.indexOf(BLOCKCHAIN) === -1) throw Error("Blockchain not enabled! "+BLOCKCHAIN)
+
+        //path
+        let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        log.info("path: ",path)
+        assert(path[0])
+        
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
         log.info("pubkey: ",pubkey)
         assert(pubkey[0])
 
-        let balance = app.balances.filter((e:any) => e.symbol === "AVAX")
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
         log.info("balance: ",balance)
         log.info("balance: ",balance[0].balance)
         assert(balance)
@@ -175,59 +189,59 @@ const test_service = async function () {
         log.info(tag,"resultSign: ",resultSign)
         assert(resultSign)
 
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
-        assert(resultBroadcast)
-
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
-
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-
-            if(invocationInfo.broadcast.noBroadcast){
-                log.notice(tag,"noBroadcast flag found: exiting ")
-                statusCode = 3
-                isConfirmed = true
-            }
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
-        }
+        // //get txid
+        // let payload = {
+        //     noBroadcast:false,
+        //     sync:true,
+        //     invocationId
+        // }
+        // let resultBroadcast = await app.broadcast(payload)
+        // log.info(tag,"resultBroadcast: ",resultBroadcast)
+        // assert(resultBroadcast)
+        //
+        // /*
+        //     Status codes
+        //     -1: errored
+        //      0: unknown
+        //      1: built
+        //      2: broadcasted
+        //      3: confirmed
+        //      4: fullfilled (swap completed)
+        //  */
+        // //monitor tx lifecycle
+        // let isConfirmed = false
+        // let isFullfilled = false
+        // let fullfillmentTxid = false
+        // let currentStatus
+        // let statusCode = 0
+        //
+        // //wait till confirmed
+        // while(!isConfirmed){
+        //     log.info("check for confirmations")
+        //     //
+        //     let invocationInfo = await app.getInvocation(invocationId)
+        //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //
+        //     if(invocationInfo.broadcast.noBroadcast){
+        //         log.notice(tag,"noBroadcast flag found: exiting ")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //     }
+        //
+        //     if(invocationInfo && invocationInfo.isConfirmed){
+        //         log.test(tag,"Confirmed!")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //         console.timeEnd('timeToConfirmed')
+        //         console.time('confirm2fullfillment')
+        //     } else {
+        //         log.test(tag,"Not Confirmed!",new Date().getTime())
+        //     }
+        //
+        //     await sleep(3000)
+        //     log.info("sleep over")
+        // }
 
         log.notice("****** TEST PASS ******")
         //process

@@ -27,7 +27,7 @@ let MIN_BALANCE = process.env['MIN_BALANCE_ETH'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.001"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-let FAUCET_ETH_ADDRESS = process.env['FAUCET_ETH_ADDRESS']
+let FAUCET_ETH_ADDRESS = process.env['FAUCET_ATOM_ADDRESS']
 let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
@@ -161,58 +161,58 @@ const test_service = async function () {
         //     sync:false
         // }
 
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
-
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
-
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-
-            if(invocationInfo.broadcast.noBroadcast){
-                log.notice(tag,"noBroadcast flag found: exiting ")
-                statusCode = 3
-                isConfirmed = true
-            }
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
-        }
+        // //get txid
+        // let payload = {
+        //     noBroadcast:false,
+        //     sync:true,
+        //     invocationId
+        // }
+        // let resultBroadcast = await app.broadcast(payload)
+        // log.info(tag,"resultBroadcast: ",resultBroadcast)
+        //
+        // /*
+        //     Status codes
+        //     -1: errored
+        //      0: unknown
+        //      1: built
+        //      2: broadcasted
+        //      3: confirmed
+        //      4: fullfilled (swap completed)
+        //  */
+        // //monitor tx lifecycle
+        // let isConfirmed = false
+        // let isFullfilled = false
+        // let fullfillmentTxid = false
+        // let currentStatus
+        // let statusCode = 0
+        //
+        // //wait till confirmed
+        // while(!isConfirmed){
+        //     log.info("check for confirmations")
+        //     //
+        //     let invocationInfo = await app.getInvocation(invocationId)
+        //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //
+        //     if(invocationInfo.broadcast.noBroadcast){
+        //         log.notice(tag,"noBroadcast flag found: exiting ")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //     }
+        //
+        //     if(invocationInfo && invocationInfo.isConfirmed){
+        //         log.test(tag,"Confirmed!")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //         console.timeEnd('timeToConfirmed')
+        //         console.time('confirm2fullfillment')
+        //     } else {
+        //         log.test(tag,"Not Confirmed!",new Date().getTime())
+        //     }
+        //
+        //     await sleep(3000)
+        //     log.info("sleep over")
+        // }
 
         log.notice("****** TEST PASS ******")
         //process
