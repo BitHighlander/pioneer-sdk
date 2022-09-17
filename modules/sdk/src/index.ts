@@ -132,7 +132,8 @@ export class SDK {
         this.queryKey = config.queryKey // or generate?
         this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
         // this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
-        this.rangoApiKey = config.rangoApiKey || '4a624ab5-16ff-4f96-90b7-ab00ddfc342c'
+        //02b14225-f62e-4e4f-863e-a8145e5befe5
+        this.rangoApiKey = config.rangoApiKey || '02b14225-f62e-4e4f-863e-a8145e5befe5'
         //combine custom with default paths
         this.paths = [...config.paths, ...getPaths(this.blockchains)];
         this.pubkeys = []
@@ -245,7 +246,7 @@ export class SDK {
                         .concat(this.blockchains.filter((x: any) => !pubkeyChains.includes(x)));
                     log.info(tag,"missingBlockchains: ",missingBlockchains)
                     //register missing
-                    if(missingBlockchains.length > 0 && wallet){
+                    if(missingBlockchains && missingBlockchains.length > 0 && wallet){
                         if(wallet){
                             await this.pairWallet(wallet)
                         } else {
@@ -427,6 +428,9 @@ export class SDK {
             let tag = TAG + " | refresh | "
             try {
                 let result = await this.pioneer.instance.Refresh()
+
+                await this.updateContext()
+
                 return result.data
             } catch (e) {
                 log.error(tag, "e: ", e)

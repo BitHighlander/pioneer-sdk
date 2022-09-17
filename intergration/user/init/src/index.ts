@@ -192,29 +192,35 @@ const test_service = async function () {
         // log.info(tag,"result: ",result)
 
         //path
-        log.info(tag,"ASSET: ",ASSET)
-        let path = app.paths.filter((e:any) => e.symbol === ASSET)
-        log.info("path: ",path)
-        log.info("app.paths: ",app.paths)
-        assert(path[0])
-
-        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
-        log.info("pubkey: ",pubkey)
-        log.info("app.pubkeys: ",app.pubkeys)
-        assert(pubkey[0])
-
-        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
-        log.info("balance: ",balance)
-        log.info("balance: ",balance[0].balance)
-        assert(balance)
-        assert(balance[0])
-        assert(balance[0].balance)
+        // log.info(tag,"ASSET: ",ASSET)
+        // let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        // log.info("path: ",path)
+        // log.info("app.paths: ",app.paths)
+        // assert(path[0])
+        //
+        // let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        // log.info("pubkey: ",pubkey)
+        // log.info("app.pubkeys: ",app.pubkeys)
+        // assert(pubkey[0])
+        //
+        // let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        // log.info("balance: ",balance)
+        // log.info("balance: ",balance[0].balance)
+        // assert(balance)
+        // assert(balance[0])
+        // assert(balance[0].balance)
 
         //pair wallet
         if(!app.isConnected){
             let resultPair = await app.pairWallet(wallet)
             // log.info(tag,"resultPair: ",resultPair)
         }
+        
+        //refresh
+        let resultRefresh = await app.refresh()
+        log.info(tag,"resultRefresh: ",resultRefresh)
+        
+        
         
         //LOAD SEED TO KEEPKEY @TODO move to its own test
         // //wipe

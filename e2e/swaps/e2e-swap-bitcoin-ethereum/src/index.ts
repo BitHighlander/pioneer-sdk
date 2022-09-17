@@ -25,7 +25,7 @@ let BLOCKCHAIN = 'bitcoin'
 let BLOCKCHAIN_OUTPUT = 'ethereum'
 let ASSET = 'BTC'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.002"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.004"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_BTC_ADDRESS = process.env['FAUCET_BTC_ADDRESS']
@@ -50,8 +50,8 @@ let blockchains = [
 ]
 
 let txid:string
-// let invocationId:string
-let invocationId = "e64b1cd5-830e-4e06-9496-2fdae3ee679e"
+let invocationId:string
+//let invocationId = "a49f0e76-08b2-45d0-8812-883a5c17c079"
 let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
