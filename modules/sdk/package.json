@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-sdk/sdk",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -24,6 +24,7 @@
     "@pioneer-platform/pioneer-coins": "8.1.52",
     "@pioneer-platform/pioneer-events": "^8.1.30",
     "@pioneer-platform/pioneer-invoke": "^8.1.35",
+    "@pioneer-sdk/tx-builder": "^1.0.3",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",
     "@shapeshiftoss/hdwallet-keepkey": "^1.22.0",
     "@shapeshiftoss/hdwallet-keepkey-nodewebusb": "^1.22.0",

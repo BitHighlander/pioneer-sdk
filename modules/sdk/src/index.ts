@@ -94,7 +94,7 @@ export class SDK {
     private isConnected: boolean;
     private context: string;
     private init: (tx: any, options: any, asset: string) => Promise<void>;
-    public refresh: (invocationId: string) => Promise<any>;
+    public refresh: () => Promise<any>;
     public pairWallet: (wallet: any) => Promise<any>;
     private removePin: () => Promise<any>;
     private startSocket: () => Promise<any>;
@@ -1478,9 +1478,15 @@ export class SDK {
                     if(!tx.from) throw Error("failed to get from address!")
                 }
 
-                log.info(tag,"buildSwap tx: ",tx)
+                log.info(tag,"** buildSwap tx: ",tx)
                 let unsignedTx = await this.txBuilder.swap(tx)
-                log.info(tag,"unsignedTx: ",unsignedTx)
+                log.info(tag,"** unsignedTx: ",unsignedTx)
+                log.info(tag,"** unsignedTx.chainId: ",unsignedTx.chainId)
+
+                //if ETH/EVM chainId required
+                if(tx.network === 'ETH'){
+                    if(!unsignedTx.chainId) throw Error("Invalid unsingedTx chainId required!")
+                }
 
                 return unsignedTx
             } catch (e) {

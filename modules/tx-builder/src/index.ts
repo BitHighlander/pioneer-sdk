@@ -57,9 +57,9 @@ export class TxBuilder {
             }
         }
         this.lp = async function (lp:any) {
-            let tag = TAG + " | swap | "
+            let tag = TAG + " | lp | "
             try {
-                log.debug(tag,"lp: ",lp)
+                log.info(tag,"lp: ",lp)
                 let unsignedTx:any
                 const expr = lp.protocol;
                 switch (expr) {
@@ -146,7 +146,7 @@ export class TxBuilder {
                 const expr = tx.type;
                 switch (expr) {
                     case 'EVM':
-                        log.debug('EVM Tx type');
+                        log.info('EVM Tx type');
                         //get account info
                         let from = tx.from
                         let gas_limit = 80000
@@ -208,7 +208,7 @@ export class TxBuilder {
                             data,
                             chainId
                         }
-
+                        log.info(tag,"ethTx: ",ethTx)
                         unsignedTx = ethTx
                         break
                     case 'TRANSFER':
