@@ -29,9 +29,6 @@ let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 // let INPUT_ASSET = ASSET
 // let OUTPUT_ASSET = "BTC"
 
-//hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
-
 
 let noBroadcast = false
 
@@ -125,7 +122,11 @@ const test_service = async function () {
         let resultRefresh = await app.refresh()
         log.info(tag,"resultRefresh: ",resultRefresh)
         
-        
+        let events = await app.startSocket()
+
+        events.on('blocks', (event:any) => {
+            log.info(tag,"***** blocks event!", event)
+        });
         
         //LOAD SEED TO KEEPKEY @TODO move to its own test
         // //wipe

@@ -205,12 +205,12 @@ export class SDK {
                 await  this.invoke.init()
 
                 //get health from server
-                let health = await this.pioneer.instance.Health()
+                let health = await this.pioneer.Health()
                 if(!health.data.online) throw Error("Pioneer Server offline!")
                 log.debug(tag,"pioneer health: ",health.data)
 
                 //get status from server
-                let status = await this.pioneer.instance.Status()
+                let status = await this.pioneer.Status()
                 log.debug(tag,"pioneer status: ",status.data)
                 this.markets = status.data.rango
 
@@ -218,7 +218,7 @@ export class SDK {
                 this.getInvocations()
 
                 //get user info
-                let userInfo = await this.pioneer.instance.User()
+                let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
                 this.user = userInfo
                 log.info(tag,"user: ",userInfo)
@@ -260,6 +260,29 @@ export class SDK {
                     log.debug(tag, "user not registered! info: ",userInfo)
                     if(wallet){
                         await this.pairWallet(wallet)
+                    } else {
+                        log.info("registering user!")
+                        let register = {
+                            username:this.username,
+                            blockchains:this.blockchains,
+                            publicAddress:'none',
+                            context:'none',
+                            walletDescription:{
+                                context:'none',
+                                type:'none'
+                            },
+                            data:{
+                                pubkeys:[]
+                            },
+                            queryKey:this.queryKey,
+                            auth:'lol',
+                            provider:'lol'
+                        }
+                        log.debug(tag,"register payload: ",register)
+                        let result = await this.pioneer.Register(null, register)
+                        log.debug(tag,"register result: ",result)
+                        result = result.data
+                        
                     }
                 } else if(userInfo.balances.length > 0) {
                     await this.startSocket()
@@ -274,7 +297,7 @@ export class SDK {
                     log.info(tag,"length paths: ",this.paths.length)
                     // log.info(tag,"pubkeys: ",userInfo.pubkeys)
                     log.info(tag,"this.paths: ",this.paths)
-                    
+
                     //verify paths and pubkeys length
                     // if(userInfo.pubkeys.length ==! this.paths.length){
                     //     if(wallet){
@@ -319,7 +342,7 @@ export class SDK {
                     this.assetBalanceNativeContext = userInfo.assetBalanceNativeContext
                     this.assetBalanceUsdValueContext = userInfo.assetBalanceUsdValueContext
                 }
-                
+
                 return this.user
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -400,7 +423,7 @@ export class SDK {
                     provider:'lol'
                 }
                 log.debug(tag,"register payload: ",register)
-                let result = await this.pioneer.instance.Register(null, register)
+                let result = await this.pioneer.Register(null, register)
                 log.debug(tag,"register result: ",result)
                 result = result.data
 
@@ -427,7 +450,7 @@ export class SDK {
         this.refresh = async function () {
             let tag = TAG + " | refresh | "
             try {
-                let result = await this.pioneer.instance.Refresh()
+                let result = await this.pioneer.Refresh()
 
                 await this.updateContext()
 
@@ -440,7 +463,7 @@ export class SDK {
             let tag = TAG + " | getInvocations | "
             try {
                 if(!invocationId) throw Error("invocationId required!")
-                let result = await this.pioneer.instance.Invocation(invocationId)
+                let result = await this.pioneer.Invocation(invocationId)
                 return result.data
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -449,7 +472,7 @@ export class SDK {
         this.getInvocations = async function () {
             let tag = TAG + " | getInvocations | "
             try {
-                let result = await this.pioneer.instance.Invocations()
+                let result = await this.pioneer.Invocations()
                 this.invocations = result.data
                 return result.data
             } catch (e) {
@@ -460,7 +483,7 @@ export class SDK {
             let tag = TAG + " | deleteInvocation | "
             try {
                 if(!invocationId) throw Error("invocationId required!")
-                let result = await this.pioneer.instance.DeleteInvocation("",{invocationId})
+                let result = await this.pioneer.DeleteInvocation("",{invocationId})
                 return result.data
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -556,10 +579,10 @@ export class SDK {
             let tag = TAG + " | updateContext | "
             try {
                 //get info
-                let userInfo = await this.pioneer.instance.User()
+                let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
                 log.debug(tag,"userInfo: ",userInfo)
-
+                if(!userInfo.pubkeys) userInfo.pubkeys = []
                 //validate user
                 let pubkeyChains:any = []
                 for(let i = 0; i < userInfo.pubkeys.length; i++){
@@ -946,7 +969,7 @@ export class SDK {
         this.updateInvocation = async function (updateBody:any) {
             let tag = TAG + " | updateInvocation | "
             try {
-                let output = await this.pioneer.instance.UpdateInvocation(null,updateBody)
+                let output = await this.pioneer.UpdateInvocation(null,updateBody)
                 return output.data;
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -1173,7 +1196,7 @@ export class SDK {
 
                 log.info(tag,"broadcastBodyTransfer: ",broadcastBodyTransfer)
                 log.info(tag,"broadcastBodyTransfer: ",JSON.stringify(broadcastBodyTransfer))
-                let resultBroadcastTransfer = await this.pioneer.instance.Broadcast(null,broadcastBodyTransfer)
+                let resultBroadcastTransfer = await this.pioneer.Broadcast(null,broadcastBodyTransfer)
                 resultBroadcastTransfer = resultBroadcastTransfer.data
                 invocation.broadcast = resultBroadcastTransfer
                 
@@ -1233,7 +1256,7 @@ export class SDK {
                 if(lp.leg1.blockchain === 'osmosis'){
                     lp.protocol = 'osmosis'
                     //get quote for out
-                    let swapQuote = await this.pioneer.instance.QuoteSwap({pair:lp.pair,amountIn:lp.amountLeg1})
+                    let swapQuote = await this.pioneer.QuoteSwap({pair:lp.pair,amountIn:lp.amountLeg1})
                     swapQuote = swapQuote.data
                     log.debug(tag,"swapQuote: ",swapQuote)
                     lp.amountLeg2 = swapQuote.buyAmount
