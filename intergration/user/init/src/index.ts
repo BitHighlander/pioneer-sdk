@@ -11,12 +11,8 @@ require("dotenv").config({path:'../../../../.env'})
 
 const TAG  = " | intergration-test | "
 
-import * as core from "@shapeshiftoss/hdwallet-core";
-import * as native from "@shapeshiftoss/hdwallet-native";
-
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
-import {v4 as uuidv4} from 'uuid';
 let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
@@ -54,62 +50,7 @@ let txid:string
 
 let IS_SIGNED: boolean
 
-// let invocationId:string
-let invocationId = '95a8db44-bcc2-4a21-b970-7b3f7e172cd9'
 
-const start_keepkey_controller = async function(){
-    try{
-        let config = {
-        }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        console.log("controller: ",controller)
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
-    }catch(e){
-        console.error(e)
-    }
-}
-
-const start_software_wallet = async function(){
-    try{
-        let mnemonic = process.env['WALLET_MAIN']
-        if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
-        const keyring = new core.Keyring();
-        //@ts-ignore
-        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
-            mnemonic,
-            deviceId: "native-wallet-test",
-        });
-        let wallet = await nativeAdapter.pairDevice("testid");
-        if(!wallet) throw Error("failed to init wallet!")
-        return wallet
-    }catch(e){
-        console.error(e)
-    }
-}
 
 const test_service = async function () {
     let tag = TAG + " | test_service | "
@@ -129,32 +70,6 @@ const test_service = async function () {
         
         //add custom path
         let paths:any = [
-            // {
-            //     note:"Bitcoin account Native Segwit (Bech32)",
-            //     blockchain: 'bitcoin',
-            //     symbol: 'BTC',
-            //     network: 'BTC',
-            //     script_type:"p2wpkh", //bech32
-            //     available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
-            //     type:"zpub",
-            //     addressNList: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0],
-            //     addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
-            //     curve: 'secp256k1',
-            //     showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
-            // },
-            // {
-            //     note:"Bitcoin account Native Segwit (Bech32) on WRONG path (extraction)",
-            //     blockchain: 'bitcoin',
-            //     symbol: 'BTC',
-            //     network: 'BTC',
-            //     script_type:"p2wpkh", //bech32
-            //     available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
-            //     type:"zpub",
-            //     addressNList: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0],
-            //     addressNListMaster: [0x80000000 + 44, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
-            //     curve: 'secp256k1',
-            //     showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
-            // }
         ]
         
         let config:any = {
@@ -181,15 +96,10 @@ const test_service = async function () {
         log.info(tag,"paths: ",app.paths)
         assert(app.paths.length === blockchains.length)
 
-        //get HDwallet
-        let wallet = await start_keepkey_controller()
-        // let wallet = await start_software_wallet()
-        // log.info(tag,"wallet: ",wallet)
-
 
         // //init with HDwallet
-        let result = await app.init(wallet)
-        // log.info(tag,"result: ",result)
+        let result = await app.init()
+        log.info(tag,"result: ",result)
 
         //path
         // log.info(tag,"ASSET: ",ASSET)
@@ -210,11 +120,6 @@ const test_service = async function () {
         // assert(balance[0])
         // assert(balance[0].balance)
 
-        //pair wallet
-        if(!app.isConnected){
-            let resultPair = await app.pairWallet(wallet)
-            // log.info(tag,"resultPair: ",resultPair)
-        }
         
         //refresh
         let resultRefresh = await app.refresh()
