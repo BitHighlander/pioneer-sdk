@@ -96,7 +96,6 @@ export class SDK {
     private init: (tx: any, options: any, asset: string) => Promise<void>;
     public refresh: (invocationId: string) => Promise<any>;
     public pairWallet: (wallet: any) => Promise<any>;
-    private removePin: () => Promise<any>;
     private startSocket: () => Promise<any>;
     private updateContext: () => Promise<any>;
     private getPubkey: (asset:string) => Promise<any>;
@@ -122,6 +121,7 @@ export class SDK {
     public getInvocations: () => Promise<any>;
     public stopSocket: () => any;
     public isSynced: boolean;
+    publicAddress: string;
     constructor(spec:string,config:any) {
         this.status = 'preInit'
         this.apiVersion = ""
@@ -143,6 +143,7 @@ export class SDK {
         this.isPaired = false
         this.isConnected = false
         this.context = ""
+        this.publicAddress = ""
         this.contexts = []
         this.invocations = []
         this.balances = []
@@ -282,7 +283,7 @@ export class SDK {
                         let result = await this.pioneer.Register(null, register)
                         log.debug(tag,"register result: ",result)
                         result = result.data
-                        
+
                     }
                 } else if(userInfo.balances.length > 0) {
                     await this.startSocket()
@@ -411,6 +412,7 @@ export class SDK {
                     username:this.username,
                     blockchains:this.blockchains,
                     context:pubkeys.context,
+                    publicAddress:pubkeys.publicAddress,
                     walletDescription:{
                         context:pubkeys.context,
                         type:'keepkey'
@@ -782,17 +784,23 @@ export class SDK {
                             })
                             break;
                         case 'OSMO':
-                            if(this.wallet.supportsOsmosis){
-                                address = await this.wallet.osmosisGetAddress({
-                                    addressNList:paths[i].addressNListMaster,
-                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                    scriptType: paths[i].script_type,
-                                    showDisplay: false
-                                })
-                            } else {
-                                //TODO handle this better bro!
-                                address = 'NOT:SUPPORTED'
-                            }
+                            address = await this.wallet.osmosisGetAddress({
+                                addressNList:paths[i].addressNListMaster,
+                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                scriptType: paths[i].script_type,
+                                showDisplay: false
+                            })
+                            // if(this.wallet.supportsOsmosis){
+                            //     address = await this.wallet.osmosisGetAddress({
+                            //         addressNList:paths[i].addressNListMaster,
+                            //         coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                            //         scriptType: paths[i].script_type,
+                            //         showDisplay: false
+                            //     })
+                            // } else {
+                            //     //TODO handle this better bro!
+                            //     address = 'NOT:SUPPORTED'
+                            // }
                             break;
                         case 'BNB':
                             address = await this.wallet.binanceGetAddress({
@@ -881,22 +889,12 @@ export class SDK {
                     "PATHS":paths
                 }
                 log.debug(tag,"writePathPub: ",watchWallet)
+                output.publicAddress = masterEth
                 output.context = context
                 output.wallet = watchWallet
                 return output
             } catch (e) {
                 log.error(tag, "e: ", e)
-            }
-        }
-        this.removePin = async function () {
-            let tag = TAG + " | removePin | "
-            try {
-                this.wallet.removePin()
-                return true
-            } catch (e) {
-                log.error(tag, "e: ", e)
-                // @ts-ignore
-                throw Error(e)
             }
         }
         this.getAddress = async function (asset:string) {
@@ -987,7 +985,10 @@ export class SDK {
                 switch(tx.type) {
                     case 'sendToAddress':
                         //TODO validate payload
+                        log.info("SendToAddress: ",tx)
                         unsignedTx = await this.sendToAddress(tx.payload)
+                        log.info(tag,"unsignedTx: ",unsignedTx)
+                        if(!unsignedTx) throw Error("Failed to build sendToAddress!")
                         
                         invocation = {
                             type:'sendToAddress',
@@ -1053,7 +1054,7 @@ export class SDK {
                 }
                 if(!unsignedTx) throw Error("failed to create unsigned tx!")
                 if(!invocation) throw Error("failed to create invocation!")
-                
+
                 log.debug(tag,"invocation: ",invocation)
                 if(!result.invocationId) throw Error("Failed to build invocation!")
                 return result.invocationId
@@ -1129,6 +1130,11 @@ export class SDK {
 
                         txSigned.txid = txid
                         txSigned.serialized = txSigned.serialized
+                        break;
+                    case 'osmosis':
+                        txSigned = await this.wallet.osmosisSignTx(unsignedTx)
+                        log.info(tag,"txSigned: ",txSigned)
+
                         break;
                     case 'cosmos':
                         txSigned = await this.wallet.cosmosSignTx(unsignedTx)
@@ -1473,10 +1479,10 @@ export class SDK {
                 }
                 let inputAsset = swap.input.asset
                 if(!inputAsset) throw Error("invalid invocation, missing swap input asset!")
-                
+
                 //rbf
                 if(swap.replace) tx.replace = true
-                
+
                 //if UTXO
                 if(tx.type === 'TRANSFER' && tx.method === 'transfer'){
                     log.info("TRANSFER DETECTED! UTXO based")
@@ -1519,11 +1525,11 @@ export class SDK {
                 //TODO validate address
                 //TODO check balance
                 if(!tx.asset) throw Error("Invalid tx! missing asset")
-                
+
                 //TODO balance check
-                
+
                 //for all pubkeys
-                
+
                 //get balance
                 let balances = this.balances.filter((e:any) => e.symbol === tx.asset)[0]
                 log.debug(tag,"*** balances: ",balances)
@@ -1537,10 +1543,10 @@ export class SDK {
                 }else if(balances.length > 1){
                     log.debug(tag,"select larges balance")
                     //select largest balance
-                    //let largest = 
+                    //let largest =
                 }
-                
-                
+
+
                 //transferTx
                 let transferTx = {
                     type:"transfer",
@@ -1552,7 +1558,7 @@ export class SDK {
                     memo:tx.memo || '',
                     pubkey: await this.getPubkey(tx.asset)
                 }
-                
+
                 //unsignedTx
                 log.debug(tag,"transferTx: ",transferTx)
                 let unsignedTx = await this.txBuilder.buildTx(transferTx)

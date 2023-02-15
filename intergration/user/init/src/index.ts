@@ -11,7 +11,7 @@ require("dotenv").config({path:'../../../../.env'})
 
 const TAG  = " | intergration-test | "
 
-const log = require("@pioneer-platform/loggerdog")()
+const log = require("log")
 let assert = require('assert')
 let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
@@ -119,8 +119,8 @@ const test_service = async function () {
 
         
         //refresh
-        let resultRefresh = await app.refresh()
-        log.info(tag,"resultRefresh: ",resultRefresh)
+        // let resultRefresh = await app.refresh()
+        // log.info(tag,"resultRefresh: ",resultRefresh)
         
         let events = await app.startSocket()
 

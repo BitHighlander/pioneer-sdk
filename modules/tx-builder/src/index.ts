@@ -78,7 +78,7 @@ export class TxBuilder {
                         let sellAmount = lp.amountleg1
                         let buyAmount = lp.amountleg2
                         log.debug(tag,"{network:'OSMO',address:osmoAddress}: ",{network:'OSMO',address:osmoAddress})
-                        let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'OSMO',address:osmoAddress})
+                        let masterInfo = await this.pioneer.GetAccountInfo({network:'OSMO',address:osmoAddress})
                         log.debug(tag,"masterInfo: ",masterInfo)
                         masterInfo = masterInfo.data
 
@@ -152,11 +152,11 @@ export class TxBuilder {
                         let gas_limit = 80000
 
                         //get nonce
-                        let nonceRemote = await this.pioneer.instance.GetNonce(from)
+                        let nonceRemote = await this.pioneer.GetNonce(from)
                         nonceRemote = nonceRemote.data
 
                         //get gas price
-                        let gas_price = await this.pioneer.instance.GetGasPrice()
+                        let gas_price = await this.pioneer.GetGasPrice()
                         gas_price = gas_price.data
 
                         //priority
@@ -283,7 +283,7 @@ export class TxBuilder {
 
                 //get account number
                 log.debug(tag,"addressFrom: ",addressFrom)
-                let masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
+                let masterInfo = await this.pioneer.GetAccountInfo({network:'RUNE',address:addressFrom})
                 masterInfo = masterInfo.data
                 log.debug(tag,"masterInfo: ",masterInfo)
 
@@ -400,7 +400,7 @@ export class TxBuilder {
                         //
                         log.debug(tag,"selectedWallets: ",tx.pubkey)
                         //get btc fee rate
-                        let feeRateInfo = await this.pioneer.instance.GetFeeInfo({coin:"BTC"})
+                        let feeRateInfo = await this.pioneer.GetFeeInfo({coin:"BTC"})
                         feeRateInfo = feeRateInfo.data
                         log.debug(tag,"feeRateInfo: ",feeRateInfo)
 
@@ -411,12 +411,12 @@ export class TxBuilder {
                         //TODO validate pubkey per network
                         log.info(tag,"tx.pubkey: ",tx.pubkey)
                         
-                        // log.debug(tag,"pioneer: ",this.pioneer.instance)
+                        // log.debug(tag,"pioneer: ",this.pioneer)
                         // log.debug(tag,"tx.pubkey.pubkey: ",tx)
                         let pubkey = tx.pubkey.pubkey
                         log.info(tag,"tx.pubkey.pubkey: ",tx.pubkey.pubkey)
                         //@TODO use blockchain not symbol you doof
-                        let unspentInputs = await this.pioneer.instance.ListUnspent({network:tx.pubkey.symbol,xpub:pubkey})
+                        let unspentInputs = await this.pioneer.ListUnspent({network:tx.pubkey.symbol,xpub:pubkey})
                         unspentInputs = unspentInputs.data
                         log.debug(tag,"***** WTF unspentInputs: ",unspentInputs)
 
@@ -564,7 +564,7 @@ export class TxBuilder {
 
                         //TODO dont re-use addresses bro
                         //get change address
-                        // let changeAddressIndex = await this.pioneer.instance.GetChangeAddress(null,{network:"BTC",xpub:selectedWallets["BTC-XPUB"]})
+                        // let changeAddressIndex = await this.pioneer.GetChangeAddress(null,{network:"BTC",xpub:selectedWallets["BTC-XPUB"]})
                         // changeAddressIndex = changeAddressIndex.data.changeIndex
                         // log.debug(tag,"changeAddressIndex: ",changeAddressIndex)
                         //
@@ -662,11 +662,11 @@ export class TxBuilder {
                         let gas_limit = 80000 //TODO dynamic? lowerme?
 
                         //get nonce
-                        let nonceRemote = await this.pioneer.instance.GetNonce(from)
+                        let nonceRemote = await this.pioneer.GetNonce(from)
                         nonceRemote = nonceRemote.data
 
                         //get gas price
-                        let gas_price = await this.pioneer.instance.GetGasPrice()
+                        let gas_price = await this.pioneer.GetGasPrice()
                         gas_price = gas_price.data
 
                         let nonce = nonceRemote // || override (for Replace manual Tx)
@@ -675,7 +675,7 @@ export class TxBuilder {
                         let value
                         //if amount = max
                         if(tx.amount === 'MAX'){
-                            let ethBalance = await this.pioneer.instance.GetPubkeyBalance({asset:'ETH',pubkey:from})
+                            let ethBalance = await this.pioneer.GetPubkeyBalance({asset:'ETH',pubkey:from})
                             log.debug(tag,"ethBalance: ",ethBalance)
 
                             let ethBalanceBase = nativeToBaseAmount(ethBalance)
@@ -742,7 +742,7 @@ export class TxBuilder {
                         if(!addressFrom) throw Error("Missing, addressFrom!")
                         if(!tx.toAddress) throw Error("Missing, toAddress!")
 
-                        masterInfo = await this.pioneer.instance.GetAccountInfo({network:'RUNE',address:addressFrom})
+                        masterInfo = await this.pioneer.GetAccountInfo({network:'RUNE',address:addressFrom})
                         masterInfo = masterInfo.data
                         log.info(tag,"masterInfo: ",masterInfo.data)
 
@@ -803,6 +803,77 @@ export class TxBuilder {
                         }
                         unsignedTx = runeTx
                         break
+                    case 'osmosis':
+                        addressFrom = tx.pubkey.address || tx.pubkey.master
+                        //log.info(tag,"addressFrom: ",addressFrom)
+                        if(!addressFrom) throw Error("Missing, addressFrom!")
+                        if(!tx.toAddress) throw Error("Missing, toAddress!")
+                        //get amount native
+                        amountNative = baseAmountToNative(tx.asset,tx.amount)
+                        log.debug(tag,"amountNative: ",amountNative)
+
+                        //get account number
+                        log.debug(tag,"addressFrom: ",addressFrom)
+                        masterInfo = await this.pioneer.GetAccountInfo({network:'OSMO',address:addressFrom})
+                        masterInfo = masterInfo.data
+                        log.debug(tag,"masterInfo: ",masterInfo.data)
+
+                        sequence = masterInfo.result.value.sequence
+                        account_number = masterInfo.result.value.account_number
+                        sequence = parseInt(sequence)
+                        sequence = sequence.toString()
+
+                        txType = "cosmos-sdk/MsgSend"
+                        gas = "100000"
+                        fee = "1000"
+                        memo = tx.memo || ""
+
+                        //sign tx
+                        unsigned = {
+                            "fee": {
+                                "amount": [
+                                    {
+                                        "amount": fee,
+                                        "denom": "uosmo"
+                                    }
+                                ],
+                                "gas": gas
+                            },
+                            "memo": memo,
+                            "msg": [
+                                {
+                                    "type": txType,
+                                    "value": {
+                                        "amount": [
+                                            {
+                                                "amount": amountNative.toString(),
+                                                "denom": "uosmo"
+                                            }
+                                        ],
+                                        "from_address": addressFrom,
+                                        "to_address": tx.toAddress
+                                    }
+                                }
+                            ],
+                            "signatures": []
+                        }
+
+                        chain_id = OSMO_CHAIN
+
+                        if(!sequence) throw Error("112: Failed to get sequence")
+                        if(!account_number) throw Error("113: Failed to get account_number")
+
+                        //if(fromAddress !== addressFrom) throw Error("Can not sign, address mismatch")
+                        let osmoTx = {
+                            addressNList: bip32ToAddressNList(HD_ATOM_KEYPATH),
+                            chain_id,
+                            account_number: account_number,
+                            sequence:sequence,
+                            tx: unsigned,
+                        }
+
+                        unsignedTx = osmoTx
+                        break                    
                     case 'cosmos':
                         addressFrom = tx.pubkey.address || tx.pubkey.master
                         //log.info(tag,"addressFrom: ",addressFrom)
@@ -814,7 +885,7 @@ export class TxBuilder {
 
                         //get account number
                         log.debug(tag,"addressFrom: ",addressFrom)
-                        masterInfo = await this.pioneer.instance.GetAccountInfo({network:'ATOM',address:addressFrom})
+                        masterInfo = await this.pioneer.GetAccountInfo({network:'ATOM',address:addressFrom})
                         masterInfo = masterInfo.data
                         log.debug(tag,"masterInfo: ",masterInfo.data)
 
@@ -885,7 +956,7 @@ export class TxBuilder {
 
                         //get account number
                         log.debug(tag,"addressFrom: ",addressFrom)
-                        masterInfo = await this.pioneer.instance.GetAccountInfo({network:'BNB',address:addressFrom})
+                        masterInfo = await this.pioneer.GetAccountInfo({network:'BNB',address:addressFrom})
                         masterInfo = masterInfo.data
                         log.info(tag,"masterInfo: ",masterInfo)
 
