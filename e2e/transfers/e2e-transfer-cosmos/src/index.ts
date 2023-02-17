@@ -12,7 +12,8 @@ require("dotenv").config({path:'../../../../.env'})
 const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
-import * as native from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
+import { KeepKeySdk } from '@keepkey/keepkey-sdk'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -32,7 +33,6 @@ let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
 let noBroadcast = false
 
 console.log("spec: ",spec)
@@ -48,33 +48,23 @@ let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
     try{
-        let config = {
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
+        let config: any = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
         }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let sdk = await KeepKeySdk.create(config)
+        console.log(config.apiKey)
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        console.log("wallet: ",wallet)
+        return wallet
     }catch(e){
         console.error(e)
     }
@@ -85,12 +75,12 @@ const start_software_wallet = async function(){
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
         const keyring = new core.Keyring();
-        //@ts-ignore
-        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
-            mnemonic,
-            deviceId: "native-wallet-test",
-        });
+        const nativeAdapter = NativeAdapter.useKeyring(keyring);
         let wallet = await nativeAdapter.pairDevice("testid");
+        //@ts-ignore
+        await nativeAdapter.initialize();
+        // @ts-ignore
+        wallet.loadDevice({ mnemonic });
         if(!wallet) throw Error("failed to init wallet!")
         return wallet
     }catch(e){
@@ -108,10 +98,10 @@ const test_service = async function () {
 
         //if force new user
         //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = "sdk:pair-keepkey:test-1234";
+        const queryKey = "sdk:pair-keepkey:test-123455513123";
         assert(queryKey)
 
-        const username = "sdk:test-user-1234";
+        const username = "sdk:test-user-123455123123";
         assert(username)
 
         let config:any = {
@@ -132,8 +122,11 @@ const test_service = async function () {
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.debug(tag,"result: ",result)
-
+        log.info(tag,"result: ",result)
+        
+        //verify balance
+        
+        
         let send = {
             blockchain:BLOCKCHAIN,
             asset:ASSET,
@@ -161,14 +154,14 @@ const test_service = async function () {
         //     sync:false
         // }
 
-        // //get txid
-        // let payload = {
-        //     noBroadcast:false,
-        //     sync:true,
-        //     invocationId
-        // }
-        // let resultBroadcast = await app.broadcast(payload)
-        // log.info(tag,"resultBroadcast: ",resultBroadcast)
+        //get txid
+        let payload = {
+            noBroadcast:false,
+            sync:true,
+            invocationId
+        }
+        let resultBroadcast = await app.broadcast(payload)
+        log.info(tag,"resultBroadcast: ",resultBroadcast)
         //
         // /*
         //     Status codes

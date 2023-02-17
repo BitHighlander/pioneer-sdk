@@ -42,7 +42,6 @@ import {
     WalletRequiredAssets
 } from "rango-sdk"
 import { numberToHex } from 'web3-utils'
-const keccak256 = require('keccak256')
 let pioneerApi = require("@pioneer-platform/pioneer-client")
 let TxBuilder = require('@pioneer-sdk/tx-builder')
 const Events = require("@pioneer-platform/pioneer-events")
@@ -223,7 +222,7 @@ export class SDK {
                 userInfo = userInfo.data
                 this.user = userInfo
                 log.info(tag,"user: ",userInfo)
-
+                
                 if(userInfo && userInfo.pubkeys){
                     log.debug(tag,"Validating pubkeys!: ",userInfo)
                     //verify 1 path for each blockchain enabled
@@ -247,12 +246,16 @@ export class SDK {
                         .concat(this.blockchains.filter((x: any) => !pubkeyChains.includes(x)));
                     log.info(tag,"missingBlockchains: ",missingBlockchains)
                     //register missing
-                    if(missingBlockchains && missingBlockchains.length > 0 && wallet){
+                    if(missingBlockchains && missingBlockchains.length > 0){
                         if(wallet){
-                            await this.pairWallet(wallet)
+                            log.info(tag,"Detected Wallet out of sync with server! syncing")
+                            let resultPair = await this.pairWallet(wallet)
+                            log.info (tag,"resultPair: ",resultPair)
                         } else {
                             log.error("Missing pubkey info for blockchain! and wallet not paired! unable to sync")
                         }
+                    } else {
+                        log.info(tag,"All pubkeys found!")
                     }
                 }
 
@@ -281,8 +284,7 @@ export class SDK {
                         }
                         log.debug(tag,"register payload: ",register)
                         let result = await this.pioneer.Register(null, register)
-                        log.debug(tag,"register result: ",result)
-                        result = result.data
+                        log.debug(tag,"register result: ",result.data)
 
                     }
                 } else if(userInfo.balances.length > 0) {
@@ -352,10 +354,11 @@ export class SDK {
         this.pairWallet = async function (wallet:any) {
             let tag = TAG + " | pairWallet | "
             try {
-                log.debug(tag,"CHECKPOINT")
+                log.info(tag,"Pairing Wallet")
                 if(!wallet) throw Error("Must have wallet to pair!")
                 if(!this.blockchains) throw Error("Must have blockchains to pair!")
                 if(!this.username) throw Error("Must have username to pair!")
+                
                 //wallet
                 if(wallet) {
                     this.wallet =  wallet
@@ -625,7 +628,7 @@ export class SDK {
             try {
                 let output:any = {}
                 log.debug(tag,"checkpoint")
-                log.debug(tag,"this.wallet: ",this.wallet)
+                // log.debug(tag,"this.wallet: ",this.wallet)
                 if(!this.wallet) throw Error("can not get pubkeys! Wallet not init!")
                 if(!this.blockchains) throw Error("blockchains not set!")
 
@@ -663,6 +666,7 @@ export class SDK {
                     //why
                     pathForKeepkey.coin = 'bitcoin'
                     pathForKeepkey.script_type = 'p2pkh'
+                    pathForKeepkey.scriptType = 'p2pkh'
                     //showDisplay
                     pathForKeepkey.showDisplay = false
                     pathsKeepkey.push(pathForKeepkey)
@@ -684,9 +688,7 @@ export class SDK {
                         throw Error("Failed to find path for blockchain: "+blockchain)
                     }
                 }
-
-                //this.wallet
-                log.debug(tag,"this.wallet: ",this.wallet)
+                
                 let result = await this.wallet.getPublicKeys(pathsKeepkey)
                 // if(this.walletType === 'keepkey'){
                 //     result = await this.wallet.getPublicKeys(pathsKeepkey)
@@ -1094,9 +1096,9 @@ export class SDK {
                     case 'avalanche':
                     case 'ethereum':
                         txSigned = await this.wallet.ethSignTx(unsignedTx)
-                        txid = keccak256(txSigned.serialized).toString('hex')
-                        log.debug(tag,"txid: ",txid)
-                        txSigned.txid = "0x"+txid
+                        // txid = keccak256(txSigned.serialized).toString('hex')
+                        // log.debug(tag,"txid: ",txid)
+                        // txSigned.txid = "0x"+txid
                         break;
                     case 'thorchain':
                         txSigned = await this.wallet.thorchainSignTx(unsignedTx)
