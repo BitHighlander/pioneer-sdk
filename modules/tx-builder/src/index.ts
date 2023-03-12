@@ -656,6 +656,7 @@ export class TxBuilder {
                         //#TODO handle erc20
                         log.debug('EVM Tx type');
                         //get account info
+                        log.info('tx: ',tx);
                         log.info('tx.pubkey: ',tx.pubkey);
                         let from = tx.pubkey.address || tx.pubkey.master
                         if(!from) throw Error("Invalid pubkey! missing address(from)!")

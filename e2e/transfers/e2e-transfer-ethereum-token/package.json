@@ -1,5 +1,5 @@
 {
-  "name": "@pioneer-platform/dogecoin-e2e-transfer",
+  "name": "@pioneer-platform/ethereum-toekn-e2e-transfer",
   "version": "1.0.0",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -7,7 +7,7 @@
     "yarn": "yarn",
     "start": "node lib/index.js",
     "build": "tsc -p .",
-    "dev": "rm -Rf ~/.pioneer && npm run build && NODE_OPTIONS=--openssl-legacy-provider npm run start",
+    "dev": "rm -Rf ~/.pioneer && npm run build && npm run start",
     "test": "rm -Rf ~/.pioneer && jest --verbose --silent=true  --forceExit",
     "test-debug": "rm -Rf ~/.pioneer && jest --verbose --forceExit",
     "docker:build": "docker build --build-arg NPM_TOKEN=$NPM_TOKEN -t pioneer/osmosis-e2e-sdk:latest .",
@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.18.0",
-
+    "@keepkey/hdwallet-keepkey-rest": "^1.40.16",
+    "@keepkey/keepkey-sdk": "^0.2.26",
     "@pioneer-platform/loggerdog": "^8.1.17",
+    "@pioneer-platform/pioneer-invoke": "^8.1.35",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",
     "@shapeshiftoss/hdwallet-native": "^1.22.0",
     "@types/big.js": "^6.1.3",
@@ -36,6 +38,7 @@
     "elliptic": "^6.5.4",
     "fastestsmallesttextencoderdecoder-encodeinto": "^1.0.22",
     "jest": "^28.1.0",
+    "keccak256": "^1.0.6",
     "typescript": "4.6.4",
     "usb": "^2.4.1",
     "uuid": "^8.3.2",

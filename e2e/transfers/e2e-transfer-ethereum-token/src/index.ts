@@ -23,14 +23,14 @@ let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'osmosis'
-let ASSET = 'OSMO'
-let MIN_BALANCE = process.env['MIN_BALANCE_OSMO'] || "0.004"
+let BLOCKCHAIN = 'ethereum'
+let ASSET = 'LUSD'
+let MIN_BALANCE = process.env['MIN_BALANCE_LUSD'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.001"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
-let FAUCET_OSMO_ADDRESS = process.env['FAUCET_OSMO_ADDRESS']
-let FAUCET_ADDRESS = FAUCET_OSMO_ADDRESS
+let FAUCET_ETH_ADDRESS = process.env['FAUCET_ETH_ADDRESS']
+let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
@@ -40,7 +40,7 @@ console.log("spec: ",spec)
 console.log("wss: ",wss)
 
 let blockchains = [
-    'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin','osmosis','avalanche'
+    'ethereum'
 ]
 
 let txid:string
@@ -75,6 +75,7 @@ const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
+        //console.log("mnemonic: ",mnemonic)
         const keyring = new core.Keyring();
         const nativeAdapter = NativeAdapter.useKeyring(keyring);
         let wallet = await nativeAdapter.pairDevice("testid");
@@ -99,10 +100,10 @@ const test_service = async function () {
 
         //if force new user
         //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = "sdk:pair-keepkey:test-12345";
+        const queryKey = "sdk:pair-keepkey:test-1234567";
         assert(queryKey)
 
-        const username = "sdk:test-user-12345";
+        const username = "sdk:test-user-123456";
         assert(username)
 
         let config:any = {
@@ -121,7 +122,26 @@ const test_service = async function () {
         let wallet = await start_software_wallet()
         // log.debug(tag,"wallet: ",wallet)
         
+        //get balance token
+        //path
+        log.info(tag,"ASSET: ",ASSET)
+        let path = app.paths.filter((e:any) => e.blockchain === BLOCKCHAIN)
+        log.info("path: ",path)
+        log.info("app.paths: ",app.paths)
+        assert(path[0])
 
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === "ETH")
+        log.info("pubkey: ",pubkey)
+        log.info("app.pubkeys: ",app.pubkeys)
+        assert(pubkey[0])
+
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
+        
         //init with HDwallet
         log.debug(tag,"Pre-init:")
         let result = await app.init(wallet)
@@ -129,6 +149,7 @@ const test_service = async function () {
 
         let send = {
             blockchain:BLOCKCHAIN,
+            network:"ETH", //eww
             asset:ASSET,
             address:FAUCET_ADDRESS,
             amount:TEST_AMOUNT,
