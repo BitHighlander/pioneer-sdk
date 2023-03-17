@@ -22,57 +22,38 @@ let wait = require('wait-promise');
 let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'ethereum'
-let BLOCKCHAIN_OUTPUT = 'bitcoin'
 let ASSET = 'ETH'
 let MIN_BALANCE = process.env['MIN_BALANCE_OSMO'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.05"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
-// let TRADE_PAIR  = "ETH_BTC"
-// let INPUT_ASSET = ASSET
-// let OUTPUT_ASSET = "BTC"
-
 
 let noBroadcast = false
-
 console.log("spec: ",spec)
 console.log("wss: ",wss)
 
+// let blockchains = [
+//     'avalanche'
+// ]
+
 let blockchains = [
-    'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin'
+    'ethereum'
 ]
 
 let txid:string
 
 let IS_SIGNED: boolean
 
-const start_keepkey_controller = async function(){
-    try{
-        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
-        let config: any = {
-            apiKey: serviceKey,
-            pairingInfo: {
-                name: 'ShapeShift',
-                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
-                basePath: 'http://localhost:1646/spec/swagger.json',
-                url: 'https://app.shapeshift.com',
-            },
-        }
-        let sdk = await KeepKeySdk.create(config)
-        console.log(config.apiKey)
-        const keyring = new core.Keyring();
-        // let adapter = KkRestAdapter.create()
-        // console.log("adapter: ",KkRestAdapter)
-        // let wallet = await KkRestAdapter.pairDevice(sdk)
-        // @ts-ignore
-        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
-        console.log("wallet: ",wallet)
-        return wallet
-    }catch(e){
-        console.error(e)
+const start_metamask_wallet = async () => {
+    const TAG = " | start_metamask_wallet | "
+    let wallet = {
+        _isMetaMask: true,
+        ethAddress:"0x33b35c665496ba8e71b22373843376740401f106"
     }
+    return wallet
 }
+
 
 const test_service = async function () {
     let tag = TAG + " | test_service | "
@@ -107,33 +88,9 @@ const test_service = async function () {
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
         console.log(tag,' CHECKPOINT 3');
-        //forget
-        // log.info(tag,"app.pioneer: ",app.pioneer.instance)
-        // let resultForget = await app.pioneer.instance.Forget()
-        // log.info(tag,"resultForget: ",resultForget.data)
 
-
-        //verify paths
-        //NOTE bitcoin has 2 paths, and this is NOT equal to the number of blockchains
-        // log.info(tag,"blockchains: ",blockchains)
-        // log.info(tag,"paths: ",app.paths)
-        // log.info(tag,"paths: ",app.paths.length)
-        // log.info(tag,"blockchains: ",blockchains.length)
-        // if(app.paths.length !== blockchains.length){
-        //     let blockchainsInPaths:any = []
-        //     for(let i = 0; i < app.paths.length; i++){
-        //         blockchainsInPaths.push(app.paths[i].blockchain)
-        //     }
-        //     log.error(tag,"blockchains: ",blockchains)
-        //     log.error(tag,"blockchainsInPaths: ",blockchainsInPaths)
-        //     let missing = blockchainsInPaths.filter((item: string) => blockchains.indexOf(item) < 0);
-        //     log.info(tag,"missing: ",missing)
-        // }
-        // assert(app.paths.length === blockchains.length)
-        
-        //get HDwallet
-        let wallet = await start_keepkey_controller()
-        // let wallet = await start_software_wallet()
+        //metamask
+        let wallet = await start_metamask_wallet()
         log.debug(tag,"wallet: ",wallet)
         assert(wallet)
         

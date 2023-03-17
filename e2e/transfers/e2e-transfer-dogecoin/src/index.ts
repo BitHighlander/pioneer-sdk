@@ -25,8 +25,8 @@ let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'dogecoin'
 let ASSET = 'DOGE'
-let MIN_BALANCE = process.env['MIN_BALANCE_BCH'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0001"
+let MIN_BALANCE = process.env['MIN_BALANCE_DOGE'] || "0.004"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.1"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_DOGE_ADDRESS = process.env['FAUCET_DOGE_ADDRESS']
@@ -162,7 +162,7 @@ const test_service = async function () {
         log.info(tag,"invocationId: ",invocationId)
         
         //signTx
-        let resultSign = await app.sign(invocationId)
+        let resultSign = await app.sign(invocationId, wallet)
         log.info(tag,"resultSign: ",resultSign)
 
         //get txid

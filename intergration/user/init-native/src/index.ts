@@ -13,7 +13,7 @@ const TAG  = " | intergration-test | "
 import { KeepKeySdk } from '@keepkey/keepkey-sdk'
 import * as core from "@shapeshiftoss/hdwallet-core";
 import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
-
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
 let SDK = require('@pioneer-sdk/sdk')
@@ -47,27 +47,18 @@ let txid:string
 
 let IS_SIGNED: boolean
 
-const start_keepkey_controller = async function(){
+const start_software_wallet = async function(){
     try{
-        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
-        let config: any = {
-            apiKey: serviceKey,
-            pairingInfo: {
-                name: 'ShapeShift',
-                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
-                basePath: 'http://localhost:1646/spec/swagger.json',
-                url: 'https://app.shapeshift.com',
-            },
-        }
-        let sdk = await KeepKeySdk.create(config)
-        console.log(config.apiKey)
+        let mnemonic = process.env['WALLET_MAIN']
+        if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
         const keyring = new core.Keyring();
-        // let adapter = KkRestAdapter.create()
-        // console.log("adapter: ",KkRestAdapter)
-        // let wallet = await KkRestAdapter.pairDevice(sdk)
+        const nativeAdapter = NativeAdapter.useKeyring(keyring);
+        let wallet = await nativeAdapter.pairDevice("testid");
+        //@ts-ignore
+        await nativeAdapter.initialize();
         // @ts-ignore
-        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
-        console.log("wallet: ",wallet)
+        wallet.loadDevice({ mnemonic });
+        if(!wallet) throw Error("failed to init wallet!")
         return wallet
     }catch(e){
         console.error(e)
@@ -132,7 +123,7 @@ const test_service = async function () {
         // assert(app.paths.length === blockchains.length)
         
         //get HDwallet
-        let wallet = await start_keepkey_controller()
+        let wallet = await start_software_wallet()
         // let wallet = await start_software_wallet()
         log.debug(tag,"wallet: ",wallet)
         assert(wallet)

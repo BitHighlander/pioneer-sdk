@@ -98,7 +98,7 @@ export class SDK {
     private startSocket: () => Promise<any>;
     private updateContext: () => Promise<any>;
     private getPubkey: (asset:string) => Promise<any>;
-    private getPubkeys: () => Promise<any>;
+    private getPubkeys: (wallet:any) => Promise<any>;
     private getAddress: (asset:string) => Promise<any>;
     private sendToAddress: (tx:any) => Promise<any>;
     private swapQuote: (tx:any) => Promise<any>;
@@ -111,7 +111,7 @@ export class SDK {
     //build
     private build: (tx:any) => Promise<any>;
     //sign
-    private sign: (tx:any) => Promise<any>;
+    private sign: (tx:any, wallet:any) => Promise<any>;
     //broadcast
     private broadcast: (tx:any) => Promise<any>;
     private updateInvocation: (tx:any) => Promise<any>;
@@ -130,7 +130,7 @@ export class SDK {
         this.username = config.username // or generate?
         this.queryKey = config.queryKey // or generate?
         this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
-        // this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
+        //this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
         //02b14225-f62e-4e4f-863e-a8145e5befe5
         this.rangoApiKey = config.rangoApiKey || '02b14225-f62e-4e4f-863e-a8145e5befe5'
         //combine custom with default paths
@@ -168,12 +168,13 @@ export class SDK {
 
                 //wallet
                 if(wallet) {
-                    this.wallet =  wallet
                     let isNative = await wallet?._isNative
                     let isKeepKey = await wallet?._isKeepKey
+                    let isMetaMask = await wallet?._isMetaMask
                     if(isNative) this.walletType = 'native'
                     if(isKeepKey) this.walletType = 'keepkey'
-                    if(!isNative && !isKeepKey) {
+                    if(isMetaMask) this.walletType = 'metamask'
+                    if(!isNative && !isKeepKey && !isMetaMask) {
                         log.debug(tag,"wallet: ",wallet)
                         throw Error("can not init: Unhandled Wallet type!")
                     }
@@ -360,21 +361,20 @@ export class SDK {
                 if(!this.username) throw Error("Must have username to pair!")
                 
                 //wallet
+                //TODO redundant code refactor
                 if(wallet) {
-                    this.wallet =  wallet
                     let isNative = await wallet?._isNative
                     let isKeepKey = await wallet?._isKeepKey
+                    let isMetaMask = await wallet?._isMetaMask
                     if(isNative) this.walletType = 'native'
                     if(isKeepKey) this.walletType = 'keepkey'
-                    if(!isNative && !isKeepKey) {
+                    if(isMetaMask) this.walletType = 'metamask'
+                    if(!isNative && !isKeepKey && !isMetaMask) {
                         log.debug(tag,"wallet: ",wallet)
-                        throw Error("can not pair! Unhandled Wallet type!")
+                        throw Error("can not init: Unhandled Wallet type!")
                     }
                     this.isConnected = true
                 }
-                //TODO what happens if already inited with wallet?
-                this.wallet = wallet
-                if(!this.wallet) throw Error("failed to init wallet! can not pair")
                 // wallet.transport.keyring.on(["*", "*", "*"],(message:any) => {
                 //     this.events.events.emit('keepkey',message)
                 // })
@@ -386,9 +386,9 @@ export class SDK {
                 // })
                 
                 //TODO error if server is offline
-                let pubkeys = await this.getPubkeys()
+                let pubkeys = await this.getPubkeys(wallet)
                 // pubkeys = pubkeys.pubkeys
-                // log.debug(tag,"pubkeys: ",pubkeys)
+                log.debug(tag,"pubkeys: ",pubkeys)
                 // log.debug(tag,"this.pubkeys: ",this.pubkeys)
                 //
                 // //make sure pubkeys got keys for all enabled assets
@@ -623,13 +623,13 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
-        this.getPubkeys = async function () {
+        this.getPubkeys = async function (wallet:any) {
             let tag = TAG + " | getPubkeys | "
             try {
                 let output:any = {}
                 log.debug(tag,"checkpoint")
-                // log.debug(tag,"this.wallet: ",this.wallet)
-                if(!this.wallet) throw Error("can not get pubkeys! Wallet not init!")
+                // log.debug(tag,"wallet: ",wallet)
+                if(!wallet) throw Error("can not get pubkeys! Wallet not sent!")
                 if(!this.blockchains) throw Error("blockchains not set!")
 
                 //get paths for blockchains
@@ -654,226 +654,472 @@ export class SDK {
                         throw Error("Failed to find path for blockchain: "+blockchain)
                     }
                 }
-
-                log.debug(tag,"Is keepkey, format pubkeys")
-                let pathsKeepkey:any = []
-                for(let i = 0; i < paths.length; i++){
-                    let path = paths[i]
-                    let pathForKeepkey:any = {}
-                    //send coin as bitcoin
-                    pathForKeepkey.symbol = path.symbol
-                    pathForKeepkey.addressNList = path.addressNList
-                    //why
-                    pathForKeepkey.coin = 'bitcoin'
-                    pathForKeepkey.script_type = 'p2pkh'
-                    pathForKeepkey.scriptType = 'p2pkh'
-                    //showDisplay
-                    pathForKeepkey.showDisplay = false
-                    pathsKeepkey.push(pathForKeepkey)
-                }
-
-                log.debug("***** paths IN: ",pathsKeepkey.length)
-                log.debug("***** paths IN: ",pathsKeepkey)
-
-                //verify paths for each enabled blockchain
-                for(let i = 0; i < this.blockchains.length; i++){
-                    let blockchain = this.blockchains[i]
-                    log.debug(tag,"blockchain: ",blockchain)
-
-                    //find blockchain in path
-                    let isFound = paths.find((path: { blockchain: string; }) => {
-                        return path.blockchain === blockchain
-                    })
-                    if(!isFound){
-                        throw Error("Failed to find path for blockchain: "+blockchain)
-                    }
-                }
-                
-                let result = await this.wallet.getPublicKeys(pathsKeepkey)
-                // if(this.walletType === 'keepkey'){
-                //     result = await this.wallet.getPublicKeys(pathsKeepkey)
-                // } else if(this.walletType === 'native'){
-                //     log.debug(tag,"pathsKeepkey: ",pathsKeepkey )
-                //     result = await this.wallet.getPublicKeys(pathsKeepkey)
-                // } else {
-                //     throw Error("unhandled wallet")
-                // }
-                log.debug(tag,"result: ",result)
-                if(!result) throw Error("failed to get pubkeys!")
-
-
                 let pubkeys:any = []
-                for(let i = 0; i < result.length; i++){
-                    let pubkey:any = paths[i]
-                    log.debug(tag,"pubkey: ",pubkey)
-                    let normalized:any = {}
-                    normalized.path = addressNListToBIP32(paths[i].addressNList)
-                    normalized.pathMaster = addressNListToBIP32(paths[i].addressNListMaster)
-
-                    log.debug(tag,"pubkey: ",pubkey)
-                    normalized.source = 'keepkey'
-                    if(pubkey.type === 'xpub'){
-                        normalized.type = 'xpub'
-                        normalized.xpub = true
-                        normalized.pubkey = result[i].xpub
-                        pubkey.pubkey = result[i].xpub
-                    }
-                    if(pubkey.type === 'zpub'){
-                        normalized.type = 'zpub'
-                        normalized.zpub = true
-                        log.debug(tag,"xpub: ",result[i].xpub)
-                        if(!result[i].xpub) throw Error("Missing xpub")
-
-                        //convert to zpub
-                        let zpub = await xpubConvert(result[i].xpub,'zpub')
-                        log.debug(tag,"zpub: ",result[i].xpub)
-                        normalized.pubkey = zpub
-                        pubkey.pubkey = zpub
-                    }
-                    //TODO get this from supported coins? DRY
-                    if(pubkey.symbol === 'ETH' || pubkey.symbol === 'AVAX' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
-                        pubkey.pubkey = result[i].xpub
-                    }
-                    normalized.note = pubkey.note
-                    normalized.symbol = pubkey.symbol
-                    normalized.blockchain = COIN_MAP_LONG[pubkey.symbol]
-                    normalized.network = COIN_MAP_LONG[pubkey.symbol]
-                    normalized.path = addressNListToBIP32(pubkey.addressNList)
-                    normalized.pathMaster = addressNListToBIP32(pubkey.addressNListMaster)
-
-                    //get master address
-                    let address
-                    log.debug(tag,"symbol: ",pubkey.symbol)
-                    switch(pubkey.symbol) {
-                        case 'BTC':
-                        case 'BCH':
-                        case 'DOGE':
-                        case 'DASH':
-                        case 'LTC':
-                            address = await this.wallet.btcGetAddress({
-                                addressNList:paths[i].addressNListMaster,
-                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                scriptType: paths[i].script_type,
-                                showDisplay: false
-                            })
-
-                            log.debug(tag,"address: ",address)
-                            break;
-                        case 'ETH':
-                        case 'AVAX':
-                        case 'MATIC':
-                            address = await this.wallet.ethGetAddress({
-                                addressNList:paths[i].addressNListMaster,
-                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                scriptType: paths[i].script_type,
-                                showDisplay: false
-                            })
-                            break;
-                        case 'RUNE':
-                            address = await this.wallet.thorchainGetAddress({
-                                addressNList:paths[i].addressNListMaster,
-                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                scriptType: paths[i].script_type,
-                                showDisplay: false
-                            })
-                            break;
-                        case 'ATOM':
-                            address = await this.wallet.cosmosGetAddress({
-                                addressNList:paths[i].addressNListMaster,
-                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                scriptType: paths[i].script_type,
-                                showDisplay: false
-                            })
-                            break;
-                        case 'OSMO':
-                            address = await this.wallet.osmosisGetAddress({
-                                addressNList:paths[i].addressNListMaster,
-                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                scriptType: paths[i].script_type,
-                                showDisplay: false
-                            })
-                            // if(this.wallet.supportsOsmosis){
-                            //     address = await this.wallet.osmosisGetAddress({
-                            //         addressNList:paths[i].addressNListMaster,
-                            //         coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                            //         scriptType: paths[i].script_type,
-                            //         showDisplay: false
-                            //     })
-                            // } else {
-                            //     //TODO handle this better bro!
-                            //     address = 'NOT:SUPPORTED'
-                            // }
-                            break;
-                        case 'BNB':
-                            address = await this.wallet.binanceGetAddress({
-                                addressNList:paths[i].addressNListMaster,
-                                coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
-                                scriptType: paths[i].script_type,
-                                showDisplay: false
-                            })
-
-                            break;
-                        default:
-                            throw Error("coin not yet implemented ! coin: "+pubkey.symbol)
-                        // code block
-                    }
-                    log.debug(tag,"address: ",address)
-                    if(!address){
-                        log.error("Failed to get address for pubkey: ",pubkey)
-                        throw Error("address master required for valid pubkey")
-                    }
-                    normalized.script_type = pubkey.script_type //TODO select script type?
-                    //@TODO move this to pioneer-coins funtion! is_address is_xpub
-                    if(pubkey.symbol === 'ETH' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO' || pubkey.symbol === 'AVAX'){
-                        normalized.type = "address"
-                        normalized.pubkey = address
-                    }
-                    normalized.master = address
-                    normalized.address = address
-
-                    pubkeys.push(normalized)
-                    this.pubkeys.push(normalized)
-                }
-                log.debug(tag,"pubkeys:",pubkeys)
-                output.pubkeys = pubkeys
-                // this.pubkeys = pubkeys
-                if(pubkeys.length !== result.length) {
-                    log.error(tag, {pathsKeepkey})
-                    log.error(tag, {result})
-                    throw Error("Failed to Normalize pubkeys!")
-                }
-                log.debug(tag,"pubkeys: (normalized) ",pubkeys.length)
-                log.debug(tag,"pubkeys: (normalized) ",pubkeys)
-
                 //add feature info to pubkey
                 let keyedWallet:any = {}
-                for(let i = 0; i < pubkeys.length; i++){
-                    let pubkey = pubkeys[i]
-                    if(!keyedWallet[pubkey.symbol]){
-                        keyedWallet[pubkey.symbol] = pubkey
-                    }else{
-                        if(!keyedWallet['available']) keyedWallet['available'] = []
-                        //add to secondary pubkeys
-                        keyedWallet['available'].push(pubkey)
+
+                //if native
+                if(wallet?._isNative){
+                    log.info(tag,"Is Native, format pubkeys")
+                    let pathsKeepkey:any = []
+                    for(let i = 0; i < paths.length; i++){
+                        let path = paths[i]
+                        let pathForKeepkey:any = {}
+                        //send coin as bitcoin
+                        pathForKeepkey.symbol = path.symbol
+                        pathForKeepkey.addressNList = path.addressNList
+                        //why
+                        pathForKeepkey.coin = 'bitcoin'
+                        pathForKeepkey.script_type = 'p2pkh'
+                        pathForKeepkey.scriptType = 'p2pkh'
+                        //showDisplay
+                        pathForKeepkey.showDisplay = false
+                        pathsKeepkey.push(pathForKeepkey)
+                    }
+
+                    log.debug("***** paths IN: ",pathsKeepkey.length)
+                    log.debug("***** paths IN: ",pathsKeepkey)
+
+                    //verify paths for each enabled blockchain
+                    for(let i = 0; i < this.blockchains.length; i++){
+                        let blockchain = this.blockchains[i]
+                        log.debug(tag,"blockchain: ",blockchain)
+
+                        //find blockchain in path
+                        let isFound = paths.find((path: { blockchain: string; }) => {
+                            return path.blockchain === blockchain
+                        })
+                        if(!isFound){
+                            throw Error("Failed to find path for blockchain: "+blockchain)
+                        }
+                    }
+
+                    let result = await wallet.getPublicKeys(pathsKeepkey)
+                    // if(walletType === 'keepkey'){
+                    //     result = await wallet.getPublicKeys(pathsKeepkey)
+                    // } else if(walletType === 'native'){
+                    //     log.debug(tag,"pathsKeepkey: ",pathsKeepkey )
+                    //     result = await wallet.getPublicKeys(pathsKeepkey)
+                    // } else {
+                    //     throw Error("unhandled wallet")
+                    // }
+                    log.debug(tag,"result wallet.getPublicKeys: ",result)
+                    if(!result) throw Error("failed to get pubkeys!")
+
+
+
+                    for(let i = 0; i < result.length; i++){
+                        let pubkey:any = paths[i]
+                        log.debug(tag,"pubkey: ",pubkey)
+                        let normalized:any = {}
+                        normalized.path = addressNListToBIP32(paths[i].addressNList)
+                        normalized.pathMaster = addressNListToBIP32(paths[i].addressNListMaster)
+
+                        log.debug(tag,"pubkey: ",pubkey)
+                        normalized.source = 'keepkey'
+                        if(pubkey.type === 'xpub'){
+                            normalized.type = 'xpub'
+                            normalized.xpub = true
+                            normalized.pubkey = result[i].xpub
+                            pubkey.pubkey = result[i].xpub
+                        }
+                        if(pubkey.type === 'zpub'){
+                            normalized.type = 'zpub'
+                            normalized.zpub = true
+                            log.debug(tag,"xpub: ",result[i].xpub)
+                            if(!result[i].xpub) throw Error("Missing xpub")
+
+                            //convert to zpub
+                            let zpub = await xpubConvert(result[i].xpub,'zpub')
+                            log.debug(tag,"zpub: ",result[i].xpub)
+                            normalized.pubkey = zpub
+                            pubkey.pubkey = zpub
+                        }
+                        //TODO get this from supported coins? DRY
+                        if(pubkey.symbol === 'ETH' || pubkey.symbol === 'AVAX' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
+                            pubkey.pubkey = result[i].xpub
+                        }
+                        normalized.note = pubkey.note
+                        normalized.symbol = pubkey.symbol
+                        normalized.blockchain = COIN_MAP_LONG[pubkey.symbol]
+                        normalized.network = COIN_MAP_LONG[pubkey.symbol]
+                        normalized.path = addressNListToBIP32(pubkey.addressNList)
+                        normalized.pathMaster = addressNListToBIP32(pubkey.addressNListMaster)
+
+                        //get master address
+                        let address
+                        log.debug(tag,"symbol: ",pubkey.symbol)
+                        switch(pubkey.symbol) {
+                            case 'BTC':
+                            case 'BCH':
+                            case 'DOGE':
+                            case 'DASH':
+                            case 'LTC':
+                                address = await wallet.btcGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+
+                                log.debug(tag,"address: ",address)
+                                break;
+                            case 'ETH':
+                            case 'AVAX':
+                            case 'MATIC':
+                                address = await wallet.ethGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                break;
+                            case 'RUNE':
+                                address = await wallet.thorchainGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                break;
+                            case 'ATOM':
+                                address = await wallet.cosmosGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                break;
+                            case 'OSMO':
+                                address = await wallet.osmosisGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                // if(wallet.supportsOsmosis){
+                                //     address = await wallet.osmosisGetAddress({
+                                //         addressNList:paths[i].addressNListMaster,
+                                //         coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                //         scriptType: paths[i].script_type,
+                                //         showDisplay: false
+                                //     })
+                                // } else {
+                                //     //TODO handle this better bro!
+                                //     address = 'NOT:SUPPORTED'
+                                // }
+                                break;
+                            case 'BNB':
+                                address = await wallet.binanceGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+
+                                break;
+                            default:
+                                throw Error("coin not yet implemented ! coin: "+pubkey.symbol)
+                            // code block
+                        }
+                        log.debug(tag,"address: ",address)
+                        if(!address){
+                            log.error("Failed to get address for pubkey: ",pubkey)
+                            throw Error("address master required for valid pubkey")
+                        }
+                        normalized.script_type = pubkey.script_type //TODO select script type?
+                        //@TODO move this to pioneer-coins funtion! is_address is_xpub
+                        if(pubkey.symbol === 'ETH' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO' || pubkey.symbol === 'AVAX'){
+                            normalized.type = "address"
+                            normalized.pubkey = address
+                        }
+                        normalized.master = address
+                        normalized.address = address
+
+                        pubkeys.push(normalized)
+                        this.pubkeys.push(normalized)
+                    }
+                    log.debug(tag,"pubkeys:",pubkeys)
+                    output.pubkeys = pubkeys
+                    // this.pubkeys = pubkeys
+                    if(pubkeys.length !== result.length) {
+                        log.error(tag, {pathsKeepkey})
+                        log.error(tag, {result})
+                        throw Error("Failed to Normalize pubkeys!")
+                    }
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys.length)
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys)
+
+
+                    for(let i = 0; i < pubkeys.length; i++){
+                        let pubkey = pubkeys[i]
+                        if(!keyedWallet[pubkey.symbol]){
+                            keyedWallet[pubkey.symbol] = pubkey
+                        }else{
+                            if(!keyedWallet['available']) keyedWallet['available'] = []
+                            //add to secondary pubkeys
+                            keyedWallet['available'].push(pubkey)
+                        }
+                    }
+
+                    //verify pubkeys
+                    for(let i = 0; i < this.blockchains.length; i++){
+                        let blockchain = this.blockchains[i]
+                        let symbol = getNativeAssetForBlockchain(blockchain)
+                        log.debug(tag,"symbol: ",symbol)
+                        //find in pubkeys
+                        let isFound = pubkeys.find((path: { blockchain: string; }) => {
+                            return path.blockchain === blockchain
+                        })
+                        if(!isFound){
+                            throw Error("Failed to find pubkey for blockchain: "+blockchain)
+                        }
+                        //verify master
                     }
                 }
 
-                //verify pubkeys
-                for(let i = 0; i < this.blockchains.length; i++){
-                    let blockchain = this.blockchains[i]
-                    let symbol = getNativeAssetForBlockchain(blockchain)
-                    log.debug(tag,"symbol: ",symbol)
-                    //find in pubkeys
-                    let isFound = pubkeys.find((path: { blockchain: string; }) => {
-                        return path.blockchain === blockchain
-                    })
-                    if(!isFound){
-                        throw Error("Failed to find pubkey for blockchain: "+blockchain)
+                //if keepkey
+                if(wallet?._isKeepKey){
+                    log.debug(tag,"Is keepkey, format pubkeys")
+                    let pathsKeepkey:any = []
+                    for(let i = 0; i < paths.length; i++){
+                        let path = paths[i]
+                        let pathForKeepkey:any = {}
+                        //send coin as bitcoin
+                        pathForKeepkey.symbol = path.symbol
+                        pathForKeepkey.addressNList = path.addressNList
+                        //why
+                        pathForKeepkey.coin = 'bitcoin'
+                        pathForKeepkey.script_type = 'p2pkh'
+                        pathForKeepkey.scriptType = 'p2pkh'
+                        //showDisplay
+                        pathForKeepkey.showDisplay = false
+                        pathsKeepkey.push(pathForKeepkey)
                     }
-                    //verify master
+
+                    log.debug("***** paths IN: ",pathsKeepkey.length)
+                    log.debug("***** paths IN: ",pathsKeepkey)
+
+                    //verify paths for each enabled blockchain
+                    for(let i = 0; i < this.blockchains.length; i++){
+                        let blockchain = this.blockchains[i]
+                        log.debug(tag,"blockchain: ",blockchain)
+
+                        //find blockchain in path
+                        let isFound = paths.find((path: { blockchain: string; }) => {
+                            return path.blockchain === blockchain
+                        })
+                        if(!isFound){
+                            throw Error("Failed to find path for blockchain: "+blockchain)
+                        }
+                    }
+
+                    let result = await wallet.getPublicKeys(pathsKeepkey)
+                    // if(walletType === 'keepkey'){
+                    //     result = await wallet.getPublicKeys(pathsKeepkey)
+                    // } else if(walletType === 'native'){
+                    //     log.debug(tag,"pathsKeepkey: ",pathsKeepkey )
+                    //     result = await wallet.getPublicKeys(pathsKeepkey)
+                    // } else {
+                    //     throw Error("unhandled wallet")
+                    // }
+                    log.debug(tag,"result wallet.getPublicKeys: ",result)
+                    if(!result) throw Error("failed to get pubkeys!")
+
+
+                    
+                    for(let i = 0; i < result.length; i++){
+                        let pubkey:any = paths[i]
+                        log.debug(tag,"pubkey: ",pubkey)
+                        let normalized:any = {}
+                        normalized.path = addressNListToBIP32(paths[i].addressNList)
+                        normalized.pathMaster = addressNListToBIP32(paths[i].addressNListMaster)
+
+                        log.debug(tag,"pubkey: ",pubkey)
+                        normalized.source = 'keepkey'
+                        if(pubkey.type === 'xpub'){
+                            normalized.type = 'xpub'
+                            normalized.xpub = true
+                            normalized.pubkey = result[i].xpub
+                            pubkey.pubkey = result[i].xpub
+                        }
+                        if(pubkey.type === 'zpub'){
+                            normalized.type = 'zpub'
+                            normalized.zpub = true
+                            log.debug(tag,"xpub: ",result[i].xpub)
+                            if(!result[i].xpub) throw Error("Missing xpub")
+
+                            //convert to zpub
+                            let zpub = await xpubConvert(result[i].xpub,'zpub')
+                            log.debug(tag,"zpub: ",result[i].xpub)
+                            normalized.pubkey = zpub
+                            pubkey.pubkey = zpub
+                        }
+                        //TODO get this from supported coins? DRY
+                        if(pubkey.symbol === 'ETH' || pubkey.symbol === 'AVAX' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
+                            pubkey.pubkey = result[i].xpub
+                        }
+                        normalized.note = pubkey.note
+                        normalized.symbol = pubkey.symbol
+                        normalized.blockchain = COIN_MAP_LONG[pubkey.symbol]
+                        normalized.network = COIN_MAP_LONG[pubkey.symbol]
+                        normalized.path = addressNListToBIP32(pubkey.addressNList)
+                        normalized.pathMaster = addressNListToBIP32(pubkey.addressNListMaster)
+
+                        //get master address
+                        let address
+                        log.debug(tag,"symbol: ",pubkey.symbol)
+                        switch(pubkey.symbol) {
+                            case 'BTC':
+                            case 'BCH':
+                            case 'DOGE':
+                            case 'DASH':
+                            case 'LTC':
+                                address = await wallet.btcGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+
+                                log.debug(tag,"address: ",address)
+                                break;
+                            case 'ETH':
+                            case 'AVAX':
+                            case 'MATIC':
+                                address = await wallet.ethGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                break;
+                            case 'RUNE':
+                                address = await wallet.thorchainGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                break;
+                            case 'ATOM':
+                                address = await wallet.cosmosGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                break;
+                            case 'OSMO':
+                                address = await wallet.osmosisGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+                                // if(wallet.supportsOsmosis){
+                                //     address = await wallet.osmosisGetAddress({
+                                //         addressNList:paths[i].addressNListMaster,
+                                //         coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                //         scriptType: paths[i].script_type,
+                                //         showDisplay: false
+                                //     })
+                                // } else {
+                                //     //TODO handle this better bro!
+                                //     address = 'NOT:SUPPORTED'
+                                // }
+                                break;
+                            case 'BNB':
+                                address = await wallet.binanceGetAddress({
+                                    addressNList:paths[i].addressNListMaster,
+                                    coin: COIN_MAP_KEEPKEY_LONG[pubkey.symbol],
+                                    scriptType: paths[i].script_type,
+                                    showDisplay: false
+                                })
+
+                                break;
+                            default:
+                                throw Error("coin not yet implemented ! coin: "+pubkey.symbol)
+                            // code block
+                        }
+                        log.debug(tag,"address: ",address)
+                        if(!address){
+                            log.error("Failed to get address for pubkey: ",pubkey)
+                            throw Error("address master required for valid pubkey")
+                        }
+                        normalized.script_type = pubkey.script_type //TODO select script type?
+                        //@TODO move this to pioneer-coins funtion! is_address is_xpub
+                        if(pubkey.symbol === 'ETH' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO' || pubkey.symbol === 'AVAX'){
+                            normalized.type = "address"
+                            normalized.pubkey = address
+                        }
+                        normalized.master = address
+                        normalized.address = address
+
+                        pubkeys.push(normalized)
+                        this.pubkeys.push(normalized)
+                    }
+                    log.debug(tag,"pubkeys:",pubkeys)
+                    output.pubkeys = pubkeys
+                    // this.pubkeys = pubkeys
+                    if(pubkeys.length !== result.length) {
+                        log.error(tag, {pathsKeepkey})
+                        log.error(tag, {result})
+                        throw Error("Failed to Normalize pubkeys!")
+                    }
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys.length)
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys)
+
+
+                    for(let i = 0; i < pubkeys.length; i++){
+                        let pubkey = pubkeys[i]
+                        if(!keyedWallet[pubkey.symbol]){
+                            keyedWallet[pubkey.symbol] = pubkey
+                        }else{
+                            if(!keyedWallet['available']) keyedWallet['available'] = []
+                            //add to secondary pubkeys
+                            keyedWallet['available'].push(pubkey)
+                        }
+                    }
+
+                    //verify pubkeys
+                    for(let i = 0; i < this.blockchains.length; i++){
+                        let blockchain = this.blockchains[i]
+                        let symbol = getNativeAssetForBlockchain(blockchain)
+                        log.debug(tag,"symbol: ",symbol)
+                        //find in pubkeys
+                        let isFound = pubkeys.find((path: { blockchain: string; }) => {
+                            return path.blockchain === blockchain
+                        })
+                        if(!isFound){
+                            throw Error("Failed to find pubkey for blockchain: "+blockchain)
+                        }
+                        //verify master
+                    }
                 }
 
-                // let features = this.wallet.features;
+                //if metamask
+                if(wallet?._isMetaMask) {
+                    log.info(tag," metamask wallet detected!")
+                    let pubkeyEth = {
+                        pubkey: wallet.ethAddress,
+                        blockchain: 'ethereum',
+                        symbol: 'ETH',
+                        asset: 'ethereum',
+                        path: "m/44'/60'/0'",
+                        pathMaster: "m/44'/60'/0'/0/0",
+                        script_type: 'ethereum',
+                        network: 'ethereum',
+                        master: wallet.ethAddress,
+                        type: 'address',
+                        address: wallet.ethAddress
+                    }
+                    pubkeys.push(pubkeyEth)
+                    this.pubkeys.push(pubkeyEth)
+                    output.pubkeys = pubkeys
+                    keyedWallet['ETH'] = pubkeyEth
+                }
+                // let features = wallet.features;
                 // log.debug(tag,"vender: ",features)
                 // log.debug(tag,"vender: ",features.deviceId)
 
@@ -1066,10 +1312,10 @@ export class SDK {
                 throw Error(e)
             }
         }
-        this.sign = async function (invocationId:any) {
+        this.sign = async function (invocationId:any, wallet:any) {
             let tag = TAG + " | sign | "
             try {
-
+                if(!wallet) throw Error("Must pass wallet to sign!")
                 let invocation = await this.getInvocation(invocationId)
                 log.debug(tag,"invocation: ",invocation)
                 log.debug(tag,"*** invocation: ",JSON.stringify(invocation))
@@ -1091,17 +1337,17 @@ export class SDK {
                     case 'bitcoincash':
                     case 'litecoin':
                     case 'dogecoin':
-                        txSigned = await this.wallet.btcSignTx(unsignedTx)
+                        txSigned = await wallet.btcSignTx(unsignedTx)
                         break;
                     case 'avalanche':
                     case 'ethereum':
-                        txSigned = await this.wallet.ethSignTx(unsignedTx)
+                        txSigned = await wallet.ethSignTx(unsignedTx)
                         // txid = keccak256(txSigned.serialized).toString('hex')
                         // log.debug(tag,"txid: ",txid)
                         // txSigned.txid = "0x"+txid
                         break;
                     case 'thorchain':
-                        txSigned = await this.wallet.thorchainSignTx(unsignedTx)
+                        txSigned = await wallet.thorchainSignTx(unsignedTx)
                         log.debug(tag,"txSigned: ",txSigned)
 
                         //sequence inject for thorchain
@@ -1124,7 +1370,7 @@ export class SDK {
 
                         break;
                     case 'binance':
-                        txSigned = await this.wallet.binanceSignTx(unsignedTx)
+                        txSigned = await wallet.binanceSignTx(unsignedTx)
                         log.debug(tag,"txSigned: ",txSigned)
                         
                         // buffer = Buffer.from(JSON.stringify(txSigned.serialized), 'base64');
@@ -1134,12 +1380,12 @@ export class SDK {
                         txSigned.serialized = txSigned.serialized
                         break;
                     case 'osmosis':
-                        txSigned = await this.wallet.osmosisSignTx(unsignedTx)
+                        txSigned = await wallet.osmosisSignTx(unsignedTx)
                         log.debug(tag,"txSigned: ",txSigned)
 
                         break;
                     case 'cosmos':
-                        txSigned = await this.wallet.cosmosSignTx(unsignedTx)
+                        txSigned = await wallet.cosmosSignTx(unsignedTx)
                         log.debug(tag,"txSigned: ",txSigned)
 
                         // txFinal = txSigned
