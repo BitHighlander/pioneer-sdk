@@ -76,8 +76,6 @@ export class SDK {
     public username: any;
     public queryKey: any;
     public spec: any;
-    private wallet: any;
-    private walletType: string;
     public paths: any;
     private pubkeys: any;
     private keyring: any;
@@ -148,7 +146,6 @@ export class SDK {
         this.balances = []
         this.markets = {}
         this.context = ""
-        this.walletType = ""
         this.invocationContext = ""
         this.assetContext = ""
         this.assetBalanceNativeContext = ""
@@ -171,9 +168,9 @@ export class SDK {
                     let isNative = await wallet?._isNative
                     let isKeepKey = await wallet?._isKeepKey
                     let isMetaMask = await wallet?._isMetaMask
-                    if(isNative) this.walletType = 'native'
-                    if(isKeepKey) this.walletType = 'keepkey'
-                    if(isMetaMask) this.walletType = 'metamask'
+                    if(isNative) wallet.type = 'native'
+                    if(isKeepKey) wallet.type = 'keepkey'
+                    if(isMetaMask) wallet.type = 'metamask'
                     if(!isNative && !isKeepKey && !isMetaMask) {
                         log.debug(tag,"wallet: ",wallet)
                         throw Error("can not init: Unhandled Wallet type!")
@@ -355,26 +352,26 @@ export class SDK {
         this.pairWallet = async function (wallet:any) {
             let tag = TAG + " | pairWallet | "
             try {
-                log.debug(tag,"Pairing Wallet")
+                log.info(tag,"Pairing Wallet")
                 if(!wallet) throw Error("Must have wallet to pair!")
                 if(!this.blockchains) throw Error("Must have blockchains to pair!")
                 if(!this.username) throw Error("Must have username to pair!")
                 
-                //wallet
-                //TODO redundant code refactor
-                if(wallet) {
-                    let isNative = await wallet?._isNative
-                    let isKeepKey = await wallet?._isKeepKey
-                    let isMetaMask = await wallet?._isMetaMask
-                    if(isNative) this.walletType = 'native'
-                    if(isKeepKey) this.walletType = 'keepkey'
-                    if(isMetaMask) this.walletType = 'metamask'
-                    if(!isNative && !isKeepKey && !isMetaMask) {
-                        log.debug(tag,"wallet: ",wallet)
-                        throw Error("can not init: Unhandled Wallet type!")
-                    }
-                    this.isConnected = true
+                //walletType
+                let isNative = await wallet?._isNative
+                let isKeepKey = await wallet?._isKeepKey
+                let isMetaMask = await wallet?._isMetaMask
+                if(isNative) wallet.type = 'native'
+                if(isKeepKey) wallet.type = 'keepkey'
+                if(isMetaMask) wallet.type = 'metamask'
+                if(!isNative && !isKeepKey && !isMetaMask) {
+                    log.debug(tag,"wallet: ",wallet)
+                    throw Error("can not init: Unhandled Wallet type!")
                 }
+                this.isConnected = true
+                log.info(tag,"isNative: ",isNative)
+                log.info(tag,"isKeepKey: ",isKeepKey)
+                log.info(tag,"isMetaMask: ",isMetaMask)
                 // wallet.transport.keyring.on(["*", "*", "*"],(message:any) => {
                 //     this.events.events.emit('keepkey',message)
                 // })
@@ -386,9 +383,11 @@ export class SDK {
                 // })
                 
                 //TODO error if server is offline
+                log.debug(tag,"wallet: ",wallet)
                 let pubkeys = await this.getPubkeys(wallet)
                 // pubkeys = pubkeys.pubkeys
-                log.debug(tag,"pubkeys: ",pubkeys)
+                log.info(tag,"pubkeys: ",pubkeys)
+                if(pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
                 // log.debug(tag,"this.pubkeys: ",this.pubkeys)
                 //
                 // //make sure pubkeys got keys for all enabled assets
@@ -418,7 +417,7 @@ export class SDK {
                     publicAddress:pubkeys.publicAddress,
                     walletDescription:{
                         context:pubkeys.context,
-                        type:'keepkey'
+                        type:wallet.type
                     },
                     data:{
                         pubkeys:pubkeys.pubkeys
@@ -450,6 +449,11 @@ export class SDK {
                 return true
             } catch (e) {
                 log.error(tag, "e: ", e)
+                //response:
+                log.error(tag, "e: ", JSON.stringify(e))
+                log.error(tag, "e2: ", e.response)
+                log.error(tag, "e3: ", e.response.data)
+
             }
         }
         this.refresh = async function () {
@@ -627,7 +631,7 @@ export class SDK {
             let tag = TAG + " | getPubkeys | "
             try {
                 let output:any = {}
-                log.debug(tag,"checkpoint")
+                log.info(tag,"checkpoint")
                 // log.debug(tag,"wallet: ",wallet)
                 if(!wallet) throw Error("can not get pubkeys! Wallet not sent!")
                 if(!this.blockchains) throw Error("blockchains not set!")
@@ -737,8 +741,14 @@ export class SDK {
                         }
                         //TODO get this from supported coins? DRY
                         if(pubkey.symbol === 'ETH' || pubkey.symbol === 'AVAX' || pubkey.symbol === 'RUNE' || pubkey.symbol === 'BNB' || pubkey.symbol === 'ATOM' || pubkey.symbol === 'OSMO'){
+                            pubkey.type = 'address'
                             pubkey.pubkey = result[i].xpub
                         }
+                        if(!pubkey.type) {
+                            log.error(tag,"invalid pubkey: ",pubkey)
+                            throw Error("invalid pubkey! missing type!")
+                        }
+                        normalized.type = pubkey.type
                         normalized.note = pubkey.note
                         normalized.symbol = pubkey.symbol
                         normalized.blockchain = COIN_MAP_LONG[pubkey.symbol]
@@ -880,7 +890,7 @@ export class SDK {
 
                 //if keepkey
                 if(wallet?._isKeepKey){
-                    log.debug(tag,"Is keepkey, format pubkeys")
+                    log.info(tag,"Is keepkey, format pubkeys")
                     let pathsKeepkey:any = []
                     for(let i = 0; i < paths.length; i++){
                         let path = paths[i]
@@ -915,6 +925,7 @@ export class SDK {
                     }
 
                     let result = await wallet.getPublicKeys(pathsKeepkey)
+                    log.info(tag,"result wallet.getPublicKeys: ",result)
                     // if(walletType === 'keepkey'){
                     //     result = await wallet.getPublicKeys(pathsKeepkey)
                     // } else if(walletType === 'native'){
@@ -981,7 +992,6 @@ export class SDK {
                                     scriptType: paths[i].script_type,
                                     showDisplay: false
                                 })
-
                                 log.debug(tag,"address: ",address)
                                 break;
                             case 'ETH':
@@ -1304,8 +1314,8 @@ export class SDK {
                 if(!invocation) throw Error("failed to create invocation!")
 
                 log.debug(tag,"invocation: ",invocation)
-                if(!result.invocationId) throw Error("Failed to build invocation!")
-                return result.invocationId
+                if(!invocation.invocationId) throw Error("Failed to build invocation!")
+                return invocation.invocationId
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore

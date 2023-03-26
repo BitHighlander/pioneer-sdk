@@ -13,6 +13,7 @@ const TAG  = " | intergration-test | "
 import { KeepKeySdk } from '@keepkey/keepkey-sdk'
 import * as core from "@shapeshiftoss/hdwallet-core";
 import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -51,6 +52,33 @@ let txid:string
 
 let IS_SIGNED: boolean
 
+const start_metamask_wallet = async () => {
+    const TAG = " | start_metamask_wallet | "
+    let wallet = {
+        _isMetaMask: true,
+        ethAddress:"0x33b35c665496ba8e71b22373843376740401f106"
+    }
+    return wallet
+}
+
+const start_software_wallet = async function(){
+    try{
+        let mnemonic = process.env['WALLET_MAIN']
+        if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
+        const keyring = new core.Keyring();
+        const nativeAdapter = NativeAdapter.useKeyring(keyring);
+        let wallet = await nativeAdapter.pairDevice("testid");
+        //@ts-ignore
+        await nativeAdapter.initialize();
+        // @ts-ignore
+        wallet.loadDevice({ mnemonic });
+        if(!wallet) throw Error("failed to init wallet!")
+        return wallet
+    }catch(e){
+        console.error(e)
+    }
+}
+
 const start_keepkey_controller = async function(){
     try{
         let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
@@ -71,12 +99,13 @@ const start_keepkey_controller = async function(){
         // let wallet = await KkRestAdapter.pairDevice(sdk)
         // @ts-ignore
         let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
-        console.log("wallet: ",wallet)
+        //console.log("wallet: ",wallet)
         return wallet
     }catch(e){
         console.error(e)
     }
 }
+
 
 const test_service = async function () {
     let tag = TAG + " | test_service | "
@@ -136,19 +165,72 @@ const test_service = async function () {
         // assert(app.paths.length === blockchains.length)
         
         //get HDwallet
-        let wallet = await start_keepkey_controller()
-        // let wallet = await start_software_wallet()
-        log.debug(tag,"wallet: ",wallet)
-        assert(wallet)
-        
-        //init with HDwallet
-        let result = await app.init(wallet)
-        log.info(tag,"result: ",result)
-        
-        //User
-        let user = await result.User()
-        log.info(tag,"user: ",user.data)
+        let walletKeepKey = await start_keepkey_controller()
+        let walletSoftware = await start_software_wallet()
+        let walletMetaMask = await start_metamask_wallet()
 
+        // let wallet = await start_software_wallet()
+        log.debug(tag,"walletKeepKey: ",walletKeepKey)
+        assert(walletKeepKey)
+
+        log.debug(tag,"walletSoftware: ",walletSoftware)
+        assert(walletSoftware)
+
+        log.debug(tag,"wallet: ",walletMetaMask)
+        assert(walletMetaMask)
+
+        //init with metamask
+        let result = await app.init(walletMetaMask)
+        log.debug(tag,"result: ",result)
+
+        //verify metamask is in description
+        let user0 = await result.User()
+        user0 = user0.data
+        log.info(tag,"user0 user: ",user0)
+        log.info(tag,"user0 wallets: ",user0.wallets)
+        log.info(tag,"user0 walletDescriptions: ",user0.walletDescriptions)
+        assert(user0)
+        assert(user0.wallets)
+        assert(user0.walletDescriptions)
+        
+        //get descripton
+        let descriptionMetamask = user0.walletDescriptions.filter((e:any) => e.type === "metamask")[0]
+        assert(descriptionMetamask)
+        
+        //pair keepkey
+        let successKeepKey = await app.pairWallet(walletKeepKey)
+        log.info(tag,"successKeepKey: ",successKeepKey)
+        assert(successKeepKey)
+        await app.refresh()
+        log.info(tag,"checkpoint post refresh: ")
+        let user1 = await result.User()
+        user1 = user1.data
+        log.info(tag,"user: ",user1)
+        assert(user1)
+
+        log.info(tag,"user: ",user1.walletDescriptions)
+        let keepkeyWalletDescription = user1.walletDescriptions.filter((e:any) => e.type === "keepkey")
+        assert(keepkeyWalletDescription)
+
+        //pair software
+        let successSoftware = await app.pairWallet(walletSoftware)
+        log.info(tag,"successSoftware: ",successSoftware)
+        assert(successSoftware)
+        
+        //verify all are paired
+
+        //User
+        let user2 = await result.User()
+        user2 = user2.data
+        log.debug(tag,"user: ",user2)
+        log.info(tag,"user: ",user2.wallets)
+        log.info(tag,"user: ",user2.walletDescriptions)
+        //walletDescriptions
+
+        let nativeWalletDescription = user2.walletDescriptions.filter((e:any) => e.type === "native")
+        assert(keepkeyWalletDescription)
+        
+        
         await app.refresh()
         //pair wallet metamask
         
@@ -157,25 +239,25 @@ const test_service = async function () {
         //pair wallet tallyho
         
         //pair wallet keplr
-        return
+
         //path
         log.info(tag,"ASSET: ",ASSET)
         let path = app.paths.filter((e:any) => e.symbol === ASSET)
-        log.info("path: ",path)
-        log.info("app.paths: ",app.paths.length)
+        log.debug("path: ",path)
+        log.debug("app.paths: ",app.paths.length)
         assert(path[0])
 
         let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
-        log.info("pubkey: ",pubkey)
-        log.info("app.pubkeys: ",app.pubkeys.length)
+        log.debug("pubkey: ",pubkey)
+        log.debug("app.pubkeys: ",app.pubkeys.length)
         assert(pubkey[0])
 
-        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
-        log.info("balance: ",balance)
-        log.info("balance: ",balance[0].balance)
-        assert(balance)
-        assert(balance[0])
-        assert(balance[0].balance)
+        // let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        // log.debug("balance: ",balance)
+        // log.debug("balance: ",balance[0].balance)
+        // assert(balance)
+        // assert(balance[0])
+        // assert(balance[0].balance)
         
         //get NFT's
         
