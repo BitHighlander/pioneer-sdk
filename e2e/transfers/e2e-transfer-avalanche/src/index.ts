@@ -12,7 +12,9 @@ require("dotenv").config({path:'../../../../.env'})
 const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
-import * as native from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
+import { KeepKeySdk } from '@keepkey/keepkey-sdk'
+import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -20,6 +22,7 @@ import {v4 as uuidv4} from 'uuid';
 let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
+
 
 let BLOCKCHAIN = 'avalanche'
 let ASSET = 'AVAX'
@@ -32,14 +35,14 @@ let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
 //hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
 let noBroadcast = false
 
 console.log("spec: ",spec)
 console.log("wss: ",wss)
 
+//metamask user
 let blockchains = [
-    'avalanche'
+    'ethereum','avalanche'
 ]
 
 let txid:string
@@ -48,33 +51,23 @@ let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
     try{
-        let config = {
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
+        let config: any = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
         }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let sdk = await KeepKeySdk.create(config)
+        console.log(config.apiKey)
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        console.log("wallet: ",wallet)
+        return wallet
     }catch(e){
         console.error(e)
     }
@@ -85,18 +78,19 @@ const start_software_wallet = async function(){
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
         const keyring = new core.Keyring();
-        //@ts-ignore
-        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
-            mnemonic,
-            deviceId: "native-wallet-test",
-        });
+        const nativeAdapter = NativeAdapter.useKeyring(keyring);
         let wallet = await nativeAdapter.pairDevice("testid");
+        //@ts-ignore
+        await nativeAdapter.initialize();
+        // @ts-ignore
+        wallet.loadDevice({ mnemonic });
         if(!wallet) throw Error("failed to init wallet!")
         return wallet
     }catch(e){
         console.error(e)
     }
 }
+
 
 const test_service = async function () {
     let tag = TAG + " | test_service | "
@@ -133,7 +127,7 @@ const test_service = async function () {
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.info(tag,"result: ",result)
+        log.info(tag,"result init: ",result)
         assert(result)
 
         //pair wallet
@@ -185,7 +179,7 @@ const test_service = async function () {
         assert(invocationId)
 
         //sign
-        let resultSign = await app.sign(invocationId)
+        let resultSign = await app.sign(invocationId, wallet)
         log.info(tag,"resultSign: ",resultSign)
         assert(resultSign)
 

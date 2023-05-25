@@ -23,21 +23,25 @@ let wait = require('wait-promise');
 let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'dogecoin'
+let BLOCKCHAIN_OUTPUT = 'ethereum'
 let ASSET = 'DOGE'
 let MIN_BALANCE = process.env['MIN_BALANCE_DOGE'] || "1.0004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.005"
+// let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "MAX"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "1"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 
-// let TRADE_PAIR  = "ETH_BTC"
-// let INPUT_ASSET = ASSET
-// let OUTPUT_ASSET = "BTC"
-
+let TRADE_PAIR  = "DOGE_ETH"
+let INPUT_ASSET = ASSET
+let OUTPUT_ASSET = "ETH"
 
 let noBroadcast = false
 
 console.log("spec: ",spec)
 console.log("wss: ",wss)
+
+let invocationId:string
+//let invocationId = "a49f0e76-08b2-45d0-8812-883a5c17c079"
 
 // let blockchains = [
 //     'avalanche'
@@ -218,7 +222,70 @@ const test_service = async function () {
         assert(successSoftware)
         
         //verify all are paired
-
+        fetch("https://raw.githack.com/keepkey/keepkey-updater/master/firmware/releases.json", {
+            "referrerPolicy": "no-referrer",
+            "body": null,
+            "method": "GET",
+            "mode": "cors",
+            "credentials": "omit"
+        }); ;
+        fetch("https://raw.githack.com/keepkey/keepkey-updater/master/firmware/releases.json", {
+            "referrerPolicy": "no-referrer",
+            "body": null,
+            "method": "GET",
+            "mode": "cors",
+            "credentials": "omit"
+        }); ;
+        fetch("https://dev-api.avalanche.shapeshift.com/api/v1/account/0x141D9959cAe3853b035000490C03991eB70Fc4aC", {
+            "headers": {
+                "accept": "*/*",
+                "accept-language": "en-US,en;q=0.9",
+                "if-none-match": "W/\"85-vVyX9WTmYlu6qd5JzZ0iLe83Lng\"",
+                "sec-ch-ua": "\"Google Chrome\";v=\"111\", \"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"111\"",
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": "\"macOS\"",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "cross-site"
+            },
+            "referrerPolicy": "no-referrer",
+            "body": null,
+            "method": "GET",
+            "mode": "cors",
+            "credentials": "omit"
+        }); ;
+        fetch("https://dev-api.avalanche.shapeshift.com/api/v1/send", {
+            "headers": {
+                "accept": "*/*",
+                "accept-language": "en-US,en;q=0.9",
+                "content-type": "application/json",
+                "sec-ch-ua": "\"Google Chrome\";v=\"111\", \"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"111\"",
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": "\"macOS\"",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "cross-site"
+            },
+            "referrerPolicy": "no-referrer",
+            "body": "{\"hex\":\"0x02f87482a86a808459682f00850bfda3a30082520894c3affff54122658b89c31183cec4f15514f34624872386f26fc1000080c080a0dfa0b07cfddb2422b05d51f680839c5820c267974bcb761d5399c79d3f1c8025a010a6c76bb04d6dc671e01bb26a135748e0d8b26cd30d27e317dae57ccafd5a64\"}",
+            "method": "POST",
+            "mode": "cors",
+            "credentials": "omit"
+        }); ;
+        fetch("https://dev-api.avalanche.shapeshift.com/api/v1/send", {
+            "headers": {
+                "accept": "*/*",
+                "accept-language": "en-US,en;q=0.9",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "cross-site"
+            },
+            "referrerPolicy": "no-referrer",
+            "body": null,
+            "method": "OPTIONS",
+            "mode": "cors",
+            "credentials": "omit"
+        });
         //User
         let user2 = await result.User()
         user2 = user2.data
@@ -301,111 +368,54 @@ const test_service = async function () {
 
         //attempt to change asset context to a unsupported asset of current blockchain
 
-        // let balance = app.balances.filter((e:any) => e.symbol === ASSET)
-        // log.debug("balance: ",balance)
-        // log.debug("balance: ",balance[0].balance)
-        // assert(balance)
-        // assert(balance[0])
-        // assert(balance[0].balance)
-        
-        //get NFT's
-        
-        //verify a pubkey for every chain
-        
-        //refresh
-        // let resultRefresh = await app.refresh()
-        // log.info(tag,"resultRefresh: ",resultRefresh)
-        
-        // let events = await app.startSocket()
-        //
-        // events.on('blocks', (event:any) => {
-        //     log.info(tag,"***** blocks event!", event)
-        // });
-        
-        //LOAD SEED TO KEEPKEY @TODO move to its own test
-        // //wipe
-        // let resultWipe = await wallet.wipe()
-        // log.info(tag,"resultWipe: ",resultWipe)
-        //
-        // //load
-        // console.log("WALLET_MAIN: ",process.env['WALLET_MAIN'])
-        // let resultLoad = await wallet.loadDevice({
-        //     mnemonic:process.env['WALLET_MAIN']
-        // })
-        // log.info(tag,"resultLoad: ",resultLoad)
-        
-        //expect
-        //xpub
-        //zpub6rLj8yHs3mXRYSGNBSbajrkwghwLtpZLJf16q8bETA2mhZsMQdcPhXE4QQJAkQMAv8wpVeZYWqm3V45zzyAYS7exCugndVv8F8PmGfBTC5i
+        //validate amount
 
-        //iterate over pubkeys
-        //verify all are valid
-        // for(let i = 0; i < app.pubkeys.length; i++){
-        //     let pubkey = app.pubkeys[i]
-        //     // log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " pubkey: ",pubkey)
-        //     log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
-        //     assert(pubkey.pubkey)
-        // }
+        //build swap
+        if(!invocationId) {
+            let swap: any = {
+                input: {
+                    blockchain: BLOCKCHAIN,
+                    asset: ASSET,
+                },
+                output: {
+                    blockchain: BLOCKCHAIN_OUTPUT,
+                    asset: OUTPUT_ASSET,
+                },
+                amount: TEST_AMOUNT,
+                noBroadcast: true
+            }
+            log.info(tag, "swap: ", swap)
 
-        // let ethPubkeys = app.pubkeys.filter((e:any) => e.symbol === "ETH")
-        // log.info("ethPubkeys: ",ethPubkeys)
-        //
-        //
-        // let ethBalances = app.balances.filter((e:any) => e.symbol === "ETH")
-        // log.info("ethBalances: ",ethBalances)
-        // log.info("ethBalances: ",ethBalances[0].balance)
+            let tx = {
+                type: 'swap',
+                payload: swap
+            }
 
-        //update
-        // let refreshResult = await app.refresh()
-        // log.info("refreshResult: ",refreshResult)
+            log.notice(tag, "CHECKPOINT0: pre-buildTx")
 
-        // let refreshUpdate = await app.updateContext()
-        // log.info("refreshUpdate: ",refreshUpdate)
-        //
-        // // let ethBalances2 = app.balances.filter((e:any) => e.symbol === "ETH")
-        // // // log.info("ethBalances: ",ethBalances)
-        // // log.info("ethBalances2: ",ethBalances2[0].balance)
-        //
+            invocationId = await app.build(tx)
+            log.info(tag, "invocationId: ", invocationId)
+            assert(invocationId)
 
-        // let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
-        // log.info("bitcoinPubkeys: ",bitcoinPubkeys)
-        //
-        // let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
-        // log.info("bitcoinBalances: ",bitcoinBalances)
-        //
-        // //verify usd value correct
-        // for(let i = 0; i < bitcoinBalances.length; i++){
-        //     let balance = bitcoinBalances[i]
-        //     log.info(tag,"** balance: ",balance.balance)
-        //     log.info(tag,"** priceUsd: ",balance.priceUsd)
-        // }
-        //
-        // //rune
-        // let runeBalance = app.balances.filter((e:any) => e.symbol === "RUNE")
-        // log.info("runeBalance: ",runeBalance)
+            //get invocation
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.info(tag, "invocationInfo: ", invocationInfo)
 
+            //@TODO if no signedTx then sign again
+            let resultSign = await app.sign(invocationId)
+            log.info(tag,"resultSign: ",resultSign)
 
+            //@TODO if no broadcastInfo then broadcast again
+            //get txid
+            let payload = {
+                noBroadcast:true,
+                sync:true,
+                invocationId
+            }
+            let resultBroadcast = await app.broadcast(payload)
+            log.info(tag,"resultBroadcast: ",resultBroadcast)
+        }
 
-        // //get prefured pubkey
-        // let preferedPubkey = await app.getPubkey('BTC')
-        // log.info("preferedPubkey: ",preferedPubkey)
-        //
-        // //get balance (aggrate)
-        // // let preferedPubkey = app.getBalance('BTC')
-        // // log.info("preferedPubkey: ",preferedPubkey)
-        //
-        // //get address (of primary)
-        // let preferredAddy = await app.getAddress('BTC')
-        // log.info("preferredAddy: ",preferredAddy)
-        //
-        // //Test remote objects
-        // //get available inputs
-        // // assert(app.availableInputs)
-        // //get available outputs
-        // // assert(app.availableOutputs)
-        
-        //listen to events
-        
 
         log.notice("****** TEST PASS ******")
         //process

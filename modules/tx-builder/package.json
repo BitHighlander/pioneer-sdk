@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-sdk/tx-builder",
-  "version": "1.0.6",
+  "version": "1.0.10",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -21,8 +21,7 @@
   },
   "dependencies": {
     "@ethersproject/bignumber": "^5.6.2",
-    "@pioneer-platform/pioneer-coins": "^8.1.43",
-    "@pioneer-sdk/sdk": "1.1.55",
+    "@pioneer-platform/pioneer-coins": "^8.1.64",
     "@shapeshiftoss/hdwallet-core": "^1.44.0",
     "@types/google-protobuf": "^3.15.6",
     "@types/usb": "^2.0.5",

@@ -69,50 +69,52 @@ export class SDK {
     public invocationContext: string;
     public invocations: any;
     public assetContext: string;
+    public blockchainContext: string;
     public assetBalanceUsdValueContext: string;
     public assetBalanceNativeContext: string;
     public invoke: any;
-    private wss: any;
+    public wss: any;
     public username: any;
     public queryKey: any;
     public spec: any;
     public paths: any;
-    private pubkeys: any;
-    private keyring: any;
-    private device: any;
-    private transport: any;
+    public pubkeys: any;
     public pioneer: any;
-    private blockchains: any;
-    private txBuilder: any;
-    private user: any;
-    private rango: any;
-    private rangoApiKey: string;
-    private isPaired: boolean;
-    private isConnected: boolean;
-    private context: string;
-    private init: (tx: any, options: any, asset: string) => Promise<void>;
+    public blockchains: any;
+    public txBuilder: any;
+    public user: any;
+    public rango: any;
+    public rangoApiKey: string;
+    public isPaired: boolean;
+    public isConnected: boolean;
+    public context: string;
+    public init: (tx: any, options: any, asset: string) => Promise<void>;
     public refresh: (invocationId: string) => Promise<any>;
     public pairWallet: (wallet: any) => Promise<any>;
-    private startSocket: () => Promise<any>;
-    private updateContext: () => Promise<any>;
-    private getPubkey: (asset:string) => Promise<any>;
-    private getPubkeys: (wallet:any) => Promise<any>;
-    private getAddress: (asset:string) => Promise<any>;
-    private sendToAddress: (tx:any) => Promise<any>;
-    private swapQuote: (tx:any) => Promise<any>;
-    private buildSwap: (invocationId:string, swap:any) => Promise<any>;
-    private lpQuote: (tx:any) => Promise<any>;
-    private buildLp: (tx:any) => Promise<any>;
+    public setWalletContext: (context: string) => Promise<any>;
+    public setBlockchainContext: (blockchain: string) => Promise<any>;
+    public setAssetContext: (blockchain: string) => Promise<any>;
+    public startSocket: () => Promise<any>;
+    public updateContext: () => Promise<any>;
+    public getPubkey: (asset:string) => Promise<any>;
+    public getPubkeys: (wallet:any) => Promise<any>;
+    public getAddress: (asset:string) => Promise<any>;
+    public sendToAddress: (tx:any) => Promise<any>;
+    public swapQuote: (tx:any) => Promise<any>;
+    public buildSwap: (invocationId:string, swap:any) => Promise<any>;
+    public lpQuote: (tx:any) => Promise<any>;
+    public buildLp: (tx:any) => Promise<any>;
     // private execute: (tx:any) => Promise<any>;
-    private defi: (tx:any) => Promise<any>;
+    public defi: (tx:any) => Promise<any>;
     //TODO Standardize
     //build
-    private build: (tx:any) => Promise<any>;
+    public build: (tx:any) => Promise<any>;
     //sign
-    private sign: (tx:any, wallet:any) => Promise<any>;
+    public sign: (tx:any, wallet:any) => Promise<any>;
+    public ethSignMessage: ((msg: any, path: any, wallet: any) => Promise<any>) | undefined;
     //broadcast
-    private broadcast: (tx:any) => Promise<any>;
-    private updateInvocation: (tx:any) => Promise<any>;
+    public broadcast: (tx:any) => Promise<any>;
+    public updateInvocation: (tx:any) => Promise<any>;
     public deleteInvocation: (invocationId: string) => Promise<any>;
     public getInvocation: (invocationId: string) => Promise<any>;
     public getInvocations: () => Promise<any>;
@@ -147,7 +149,8 @@ export class SDK {
         this.markets = {}
         this.context = ""
         this.invocationContext = ""
-        this.assetContext = ""
+        this.assetContext = "ETH"
+        this.blockchainContext = "ethereum"
         this.assetBalanceNativeContext = ""
         this.assetBalanceUsdValueContext = ""
         this.wallets = []
@@ -205,11 +208,11 @@ export class SDK {
                 //get health from server
                 let health = await this.pioneer.Health()
                 if(!health.data.online) throw Error("Pioneer Server offline!")
-                log.debug(tag,"pioneer health: ",health.data)
+                log.info(tag,"pioneer health: ",health.data)
 
                 //get status from server
                 let status = await this.pioneer.Status()
-                log.debug(tag,"pioneer status: ",status.data)
+                log.info(tag,"pioneer status: ",status.data)
                 this.markets = status.data.rango
 
                 //build cache
@@ -219,7 +222,7 @@ export class SDK {
                 let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
                 this.user = userInfo
-                log.debug(tag,"user: ",userInfo)
+                log.info(tag,"First user: ",userInfo)
                 
                 if(userInfo && userInfo.pubkeys){
                     log.debug(tag,"Validating pubkeys!: ",userInfo)
@@ -259,7 +262,7 @@ export class SDK {
 
                 if(!userInfo || userInfo.error || userInfo?.balances.length === 0) {
                     //no wallets paired
-                    log.debug(tag, "user not registered! info: ",userInfo)
+                    log.info(tag, "user not registered! info: ",userInfo)
                     if(wallet){
                         await this.pairWallet(wallet)
                     } else {
@@ -283,13 +286,12 @@ export class SDK {
                         log.debug(tag,"register payload: ",register)
                         let result = await this.pioneer.Register(null, register)
                         log.debug(tag,"register result: ",result.data)
-
                     }
                 } else if(userInfo.balances.length > 0) {
                     // await this.startSocket()
-                    log.debug(tag,"CACHE FOUND! userInfo: ",userInfo.context)
-                    log.debug(tag,"user pubkeys: ",userInfo.pubkeys.length)
-                    log.debug(tag,"user balances: ",userInfo.balances.length)
+                    log.info(tag,"CACHE FOUND! userInfo: ",userInfo.context)
+                    log.info(tag,"user pubkeys: ",userInfo.pubkeys.length)
+                    log.info(tag,"user balances: ",userInfo.balances.length)
                     //this.pubkeys = userInfo.pubkeys
                     //@TODO verify ETH address match
 
@@ -338,10 +340,9 @@ export class SDK {
                     this.paymentStreams = userInfo.paymentStreams
                     this.totalValueUsd = parseFloat(userInfo.totalValueUsd)
                     this.context = userInfo.context
-                    this.invocationContext = userInfo.invocationContext
-                    this.assetContext = userInfo.assetContext
-                    this.assetBalanceNativeContext = userInfo.assetBalanceNativeContext
-                    this.assetBalanceUsdValueContext = userInfo.assetBalanceUsdValueContext
+                    if( userInfo.invocationContext)this.invocationContext = userInfo.invocationContext
+                    if( userInfo.assetContext)this.assetContext = userInfo.assetContext
+                    if( userInfo.blockchainContext)this.blockchainContext = userInfo.blockchainContext
                 }
 
                 return this.pioneer
@@ -451,8 +452,8 @@ export class SDK {
                 log.error(tag, "e: ", e)
                 //response:
                 log.error(tag, "e: ", JSON.stringify(e))
-                log.error(tag, "e2: ", e.response)
-                log.error(tag, "e3: ", e.response.data)
+                // log.error(tag, "e2: ", e.response)
+                // log.error(tag, "e3: ", e.response.data)
 
             }
         }
@@ -464,6 +465,60 @@ export class SDK {
                 await this.updateContext()
 
                 return result.data
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.setWalletContext = async function (context:string) {
+            let tag = TAG + " | setWalletContext | "
+            try {
+                if(context && this.context && this.context !== context){
+                    let result = await this.pioneer.SetContext(null,{context})
+                    log.info(tag,"result: ",result)
+                    //if success
+                    this.context = context
+                    return result.data
+                }else{
+                    return {success:false,error:"already context="+context}
+                }
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.setBlockchainContext = async function (blockchain:string) {
+            let tag = TAG + " | setBlockchainContext | "
+            try {
+                if(blockchain && this.blockchainContext && this.blockchainContext !== blockchain){
+                    let result = await this.pioneer.SetBlockchainContext(null,{blockchain})
+                    log.info(tag,"result: ",result)
+                    //if success
+                    this.blockchainContext = blockchain
+                    return result.data
+                }else{
+                    return {success:false,error:"already blockchain context="+blockchain}
+                }
+            } catch (e) {
+                log.error(tag, "e: ", e)
+            }
+        }
+        this.setAssetContext = async function (asset:string) {
+            let tag = TAG + " | setAssetContext | "
+            try {
+                if(asset && this.assetContext && this.assetContext !== asset){
+                    let result = await this.pioneer.SetAssetContext(null,{asset})
+                    log.info(tag,"result: ",result.data)
+                    if(result && result.data && result.data.success){
+                        //if success
+                        this.assetContext = asset
+                        return result.data
+                    } else {
+                        log.error(tag,"result: ",result)
+                        log.error(tag,"result.error: ",result.error)
+                        return {success:false,error:result}
+                    }
+                }else{
+                    return {success:false, error:"already asset context="+asset}
+                }
             } catch (e) {
                 log.error(tag, "e: ", e)
             }
@@ -521,7 +576,6 @@ export class SDK {
                     // this.username = event.username
                     this.updateContext()
                     this.events.pair(this.username)
-
                     log.debug(tag,"EVENT type: ",event.type)
 
                 });
