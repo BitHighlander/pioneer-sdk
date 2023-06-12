@@ -13,6 +13,9 @@ const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
 import * as native from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
+import { KeepKeySdk } from '@keepkey/keepkey-sdk'
+import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -31,8 +34,6 @@ let FAUCET_BTC_ADDRESS = process.env['FAUCET_BTC_ADDRESS']
 let FAUCET_ADDRESS = FAUCET_BTC_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
-//hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
 
 
 let noBroadcast = true
@@ -55,49 +56,38 @@ if(params[0] === 'broadcast') noBroadcast = false
 
 const start_keepkey_controller = async function(){
     try{
-        let config = {
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
+        let config: any = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
         }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let sdk = await KeepKeySdk.create(config)
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        return wallet
     }catch(e){
         console.error(e)
     }
 }
+
 
 const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
         const keyring = new core.Keyring();
-        //@ts-ignore
-        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
-            mnemonic,
-            deviceId: "native-wallet-test",
-        });
+        const nativeAdapter = NativeAdapter.useKeyring(keyring);
         let wallet = await nativeAdapter.pairDevice("testid");
+        //@ts-ignore
+        await nativeAdapter.initialize();
+        // @ts-ignore
+        wallet.loadDevice({ mnemonic });
         if(!wallet) throw Error("failed to init wallet!")
         return wallet
     }catch(e){
@@ -147,15 +137,18 @@ const test_service = async function () {
             wss
         }
         let app = new SDK.SDK(spec,config)
+        log.info(tag," checkpoint 1")
         // log.info(tag,"app: ",app)
 
         //get HDwallet
         let wallet = await start_keepkey_controller()
+        log.info(tag," checkpoint 2")
         // let wallet = await start_software_wallet()
         // log.info(tag,"wallet: ",wallet)
 
         //init with HDwallet
         let result = await app.init(wallet)
+        log.info(tag,"checkpoint 3")
         //log.info(tag,"result: ",result)
         
         assert(app.username)
@@ -169,16 +162,16 @@ const test_service = async function () {
 
         //path
         let path = app.paths.filter((e:any) => e.symbol === ASSET)
-        log.info("path: ",path)
+        //log.info("path: ",path)
         assert(path[0])
 
         let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
-        log.info("pubkey: ",pubkey)
+        //log.info("pubkey: ",pubkey)
         assert(pubkey[0])
 
         let balance = app.balances.filter((e:any) => e.symbol === ASSET)
-        log.info("balance: ",balance)
-        log.info("balance: ",balance[0].balance)
+        // log.info("balance: ",balance)
+        // log.info("balance: ",balance[0].balance)
         assert(balance)
         assert(balance[0])
         assert(balance[0].balance)

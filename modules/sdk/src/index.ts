@@ -7,9 +7,6 @@
     curl -d "param1=value1&param2=value2" -X POST http://localhost:1646/send
 
  */
-
-import cryptoTools from "crypto";
-
 const TAG = " | Pioneer-sdk | "
 const log = require("@pioneer-platform/loggerdog")()
 let {
@@ -41,12 +38,11 @@ import {
     TransactionStatusResponse,
     WalletRequiredAssets
 } from "rango-sdk"
-import { numberToHex } from 'web3-utils'
-let pioneerApi = require("@pioneer-platform/pioneer-client")
+// @ts-ignore
+import Pioneer from "@pioneer-platform/pioneer-client"
 let TxBuilder = require('@pioneer-sdk/tx-builder')
 const Events = require("@pioneer-platform/pioneer-events")
-let Invoke = require("@pioneer-platform/pioneer-invoke")
-// import * as core from "@shapeshiftoss/hdwallet-core";
+// let Invoke = require("@pioneer-platform/pioneer-invoke")
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
@@ -95,6 +91,7 @@ export class SDK {
     public setBlockchainContext: (blockchain: string) => Promise<any>;
     public setAssetContext: (blockchain: string) => Promise<any>;
     public startSocket: () => Promise<any>;
+    public stopSocket: () => any;
     public updateContext: () => Promise<any>;
     public getPubkey: (asset:string) => Promise<any>;
     public getPubkeys: (wallet:any) => Promise<any>;
@@ -118,7 +115,6 @@ export class SDK {
     public deleteInvocation: (invocationId: string) => Promise<any>;
     public getInvocation: (invocationId: string) => Promise<any>;
     public getInvocations: () => Promise<any>;
-    public stopSocket: () => any;
     public isSynced: boolean;
     publicAddress: string;
     constructor(spec:string,config:any) {
@@ -181,9 +177,8 @@ export class SDK {
                     this.isConnected = true
                 }
 
-                //pioneer
-                let Pioneer = new pioneerApi(config.spec,config)
-                this.pioneer = await Pioneer.init()
+                let PioneerClient = new Pioneer(config.spec,config)
+                this.pioneer = await PioneerClient.init()
                 if(!this.pioneer)throw Error("Fialed to init pioneer server!")
 
                 //rango
@@ -195,24 +190,24 @@ export class SDK {
                 this.txBuilder = new TxBuilder.TxBuilder(this.pioneer, config)
                 log.debug(tag,"txBuilder: ",this.txBuilder)
 
-                //init invoker
-                let configInvoke = {
-                    queryKey:this.queryKey,
-                    username:this.username,
-                    spec:this.spec
-                }
-                //get config
-                this.invoke = new Invoke(this.spec,configInvoke)
-                await  this.invoke.init()
+                // //init invoker
+                // let configInvoke = {
+                //     queryKey:this.queryKey,
+                //     username:this.username,
+                //     spec:this.spec
+                // }
+                // //get config
+                // this.invoke = new Invoke(this.spec,configInvoke)
+                // await  this.invoke.init()
 
                 //get health from server
                 let health = await this.pioneer.Health()
                 if(!health.data.online) throw Error("Pioneer Server offline!")
-                log.info(tag,"pioneer health: ",health.data)
+                log.debug(tag,"pioneer health: ",health.data)
 
                 //get status from server
                 let status = await this.pioneer.Status()
-                log.info(tag,"pioneer status: ",status.data)
+                log.debug(tag,"pioneer status: ",status.data)
                 this.markets = status.data.rango
 
                 //build cache
@@ -222,7 +217,7 @@ export class SDK {
                 let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
                 this.user = userInfo
-                log.info(tag,"First user: ",userInfo)
+                log.debug(tag,"First user: ",userInfo)
                 
                 if(userInfo && userInfo.pubkeys){
                     log.debug(tag,"Validating pubkeys!: ",userInfo)
@@ -262,7 +257,7 @@ export class SDK {
 
                 if(!userInfo || userInfo.error || userInfo?.balances.length === 0) {
                     //no wallets paired
-                    log.info(tag, "user not registered! info: ",userInfo)
+                    log.debug(tag, "user not registered! info: ",userInfo)
                     if(wallet){
                         await this.pairWallet(wallet)
                     } else {
@@ -284,14 +279,14 @@ export class SDK {
                             provider:'lol'
                         }
                         log.debug(tag,"register payload: ",register)
-                        let result = await this.pioneer.Register(null, register)
+                        let result = await this.pioneer.Register(register)
                         log.debug(tag,"register result: ",result.data)
                     }
                 } else if(userInfo.balances.length > 0) {
                     // await this.startSocket()
-                    log.info(tag,"CACHE FOUND! userInfo: ",userInfo.context)
-                    log.info(tag,"user pubkeys: ",userInfo.pubkeys.length)
-                    log.info(tag,"user balances: ",userInfo.balances.length)
+                    log.debug(tag,"CACHE FOUND! userInfo: ",userInfo.context)
+                    log.debug(tag,"user pubkeys: ",userInfo.pubkeys.length)
+                    log.debug(tag,"user balances: ",userInfo.balances.length)
                     //this.pubkeys = userInfo.pubkeys
                     //@TODO verify ETH address match
 
@@ -353,7 +348,7 @@ export class SDK {
         this.pairWallet = async function (wallet:any) {
             let tag = TAG + " | pairWallet | "
             try {
-                log.info(tag,"Pairing Wallet")
+                log.debug(tag,"Pairing Wallet")
                 if(!wallet) throw Error("Must have wallet to pair!")
                 if(!this.blockchains) throw Error("Must have blockchains to pair!")
                 if(!this.username) throw Error("Must have username to pair!")
@@ -370,9 +365,9 @@ export class SDK {
                     throw Error("can not init: Unhandled Wallet type!")
                 }
                 this.isConnected = true
-                log.info(tag,"isNative: ",isNative)
-                log.info(tag,"isKeepKey: ",isKeepKey)
-                log.info(tag,"isMetaMask: ",isMetaMask)
+                log.debug(tag,"isNative: ",isNative)
+                log.debug(tag,"isKeepKey: ",isKeepKey)
+                log.debug(tag,"isMetaMask: ",isMetaMask)
                 // wallet.transport.keyring.on(["*", "*", "*"],(message:any) => {
                 //     this.events.events.emit('keepkey',message)
                 // })
@@ -387,7 +382,7 @@ export class SDK {
                 log.debug(tag,"wallet: ",wallet)
                 let pubkeys = await this.getPubkeys(wallet)
                 // pubkeys = pubkeys.pubkeys
-                log.info(tag,"pubkeys: ",pubkeys)
+                log.debug(tag,"pubkeys: ",pubkeys)
                 if(pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
                 // log.debug(tag,"this.pubkeys: ",this.pubkeys)
                 //
@@ -411,6 +406,7 @@ export class SDK {
                 // if(pubkeys.pubkeys) this.pubkeys = pubkeys.pubkeys
 
                 //register
+                if(!this.username) throw Error("username not set!")
                 let register = {
                     username:this.username,
                     blockchains:this.blockchains,
@@ -428,7 +424,7 @@ export class SDK {
                     provider:'lol'
                 }
                 log.debug(tag,"register payload: ",register)
-                let result = await this.pioneer.Register(null, register)
+                let result = await this.pioneer.Register(register)
                 log.debug(tag,"register result: ",result)
                 result = result.data
 
@@ -473,8 +469,8 @@ export class SDK {
             let tag = TAG + " | setWalletContext | "
             try {
                 if(context && this.context && this.context !== context){
-                    let result = await this.pioneer.SetContext(null,{context})
-                    log.info(tag,"result: ",result)
+                    let result = await this.pioneer.SetContext({context})
+                    log.debug(tag,"result: ",result)
                     //if success
                     this.context = context
                     return result.data
@@ -489,8 +485,8 @@ export class SDK {
             let tag = TAG + " | setBlockchainContext | "
             try {
                 if(blockchain && this.blockchainContext && this.blockchainContext !== blockchain){
-                    let result = await this.pioneer.SetBlockchainContext(null,{blockchain})
-                    log.info(tag,"result: ",result)
+                    let result = await this.pioneer.SetBlockchainContext({blockchain})
+                    log.debug(tag,"result: ",result)
                     //if success
                     this.blockchainContext = blockchain
                     return result.data
@@ -505,8 +501,8 @@ export class SDK {
             let tag = TAG + " | setAssetContext | "
             try {
                 if(asset && this.assetContext && this.assetContext !== asset){
-                    let result = await this.pioneer.SetAssetContext(null,{asset})
-                    log.info(tag,"result: ",result.data)
+                    let result = await this.pioneer.SetAssetContext({asset})
+                    log.debug(tag,"result: ",result.data)
                     if(result && result.data && result.data.success){
                         //if success
                         this.assetContext = asset
@@ -685,7 +681,7 @@ export class SDK {
             let tag = TAG + " | getPubkeys | "
             try {
                 let output:any = {}
-                log.info(tag,"checkpoint")
+                log.debug(tag,"checkpoint")
                 // log.debug(tag,"wallet: ",wallet)
                 if(!wallet) throw Error("can not get pubkeys! Wallet not sent!")
                 if(!this.blockchains) throw Error("blockchains not set!")
@@ -718,7 +714,7 @@ export class SDK {
 
                 //if native
                 if(wallet?._isNative){
-                    log.info(tag,"Is Native, format pubkeys")
+                    log.debug(tag,"Is Native, format pubkeys")
                     let pathsKeepkey:any = []
                     for(let i = 0; i < paths.length; i++){
                         let path = paths[i]
@@ -944,7 +940,7 @@ export class SDK {
 
                 //if keepkey
                 if(wallet?._isKeepKey){
-                    log.info(tag,"Is keepkey, format pubkeys")
+                    log.debug(tag,"Is keepkey, format pubkeys")
                     let pathsKeepkey:any = []
                     for(let i = 0; i < paths.length; i++){
                         let path = paths[i]
@@ -979,7 +975,7 @@ export class SDK {
                     }
 
                     let result = await wallet.getPublicKeys(pathsKeepkey)
-                    log.info(tag,"result wallet.getPublicKeys: ",result)
+                    log.debug(tag,"result wallet.getPublicKeys: ",result)
                     // if(walletType === 'keepkey'){
                     //     result = await wallet.getPublicKeys(pathsKeepkey)
                     // } else if(walletType === 'native'){
@@ -1164,7 +1160,7 @@ export class SDK {
 
                 //if metamask
                 if(wallet?._isMetaMask) {
-                    log.info(tag," metamask wallet detected!")
+                    log.debug(tag," metamask wallet detected!")
                     let pubkeyEth = {
                         pubkey: wallet.ethAddress,
                         blockchain: 'ethereum',
@@ -1279,7 +1275,7 @@ export class SDK {
         this.updateInvocation = async function (updateBody:any) {
             let tag = TAG + " | updateInvocation | "
             try {
-                let output = await this.pioneer.UpdateInvocation(null,updateBody)
+                let output = await this.pioneer.UpdateInvocation(updateBody)
                 return output.data;
             } catch (e) {
                 log.error(tag, "e: ", e)
@@ -1312,7 +1308,7 @@ export class SDK {
                         }
                         log.debug(tag,"Save sendToAddress invocation: ",invocation)
                         log.debug(tag,"Save sendToAddress invocation: ",JSON.stringify(invocation))
-                        result = await this.invoke.invoke(invocation)
+                        // result = await this.invoke.invoke(invocation)
                         log.debug(tag,"result: ",result)
                         break;
                     case 'swap':
@@ -1339,7 +1335,7 @@ export class SDK {
                             invocationId
                         }
                         log.debug(tag,"invocation: ",invocation)
-                        result = await this.invoke.invoke(invocation)
+                        // result = await this.invoke.invoke(invocation)
                         log.debug(tag,"result: ",result)
                         
                         await sleep(3000)
@@ -1514,7 +1510,7 @@ export class SDK {
 
                 log.debug(tag,"broadcastBodyTransfer: ",broadcastBodyTransfer)
                 log.debug(tag,"broadcastBodyTransfer: ",JSON.stringify(broadcastBodyTransfer))
-                let resultBroadcastTransfer = await this.pioneer.Broadcast(null,broadcastBodyTransfer)
+                let resultBroadcastTransfer = await this.pioneer.Broadcast(broadcastBodyTransfer)
                 resultBroadcastTransfer = resultBroadcastTransfer.data
                 invocation.broadcast = resultBroadcastTransfer
                 
@@ -1597,17 +1593,17 @@ export class SDK {
                 }
 
                 log.debug(tag,"invocation: ",invocation)
-                let result = await this.invoke.invoke(invocation)
-                if(!result) throw Error("Failed to create invocation!")
-                log.debug("result: ",result)
-
-                let output = {
-                    success:true,
-                    invocationId:result.invocationId,
-                    lp
-                }
-
-                return output
+                // let result = await this.invoke.invoke(invocation)
+                // if(!result) throw Error("Failed to create invocation!")
+                // log.debug("result: ",result)
+                //
+                // let output = {
+                //     success:true,
+                //     invocationId:result.invocationId,
+                //     lp
+                // }
+                //
+                // return output
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore
@@ -1887,3 +1883,4 @@ export class SDK {
     }
 }
 
+export default SDK

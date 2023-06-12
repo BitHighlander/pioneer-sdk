@@ -11,7 +11,7 @@ require("dotenv").config({path:'../../../../.env'})
 
 const TAG  = " | intergration-test | "
 
-const log = require("log")
+const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
 let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');

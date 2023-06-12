@@ -63,7 +63,6 @@ const start_keepkey_controller = async function(){
         const keyring = new core.Keyring();
         // @ts-ignore
         let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
-        console.log("wallet: ",wallet)
         return wallet
     }catch(e){
         console.error(e)

@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-sdk/tx-builder",
-  "version": "1.0.10",
+  "version": "1.0.14",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -21,15 +21,13 @@
   },
   "dependencies": {
     "@ethersproject/bignumber": "^5.6.2",
-    "@pioneer-platform/pioneer-coins": "^8.1.64",
+    "@pioneer-platform/pioneer-coins": "^8.1.68",
     "@shapeshiftoss/hdwallet-core": "^1.44.0",
     "@types/google-protobuf": "^3.15.6",
     "@types/usb": "^2.0.5",
     "coinselect": "^3.1.12",
     "google-protobuf": "^3.20.1",
     "onchange": "^7.1.0",
-    "rango-sdk": "^0.0.4",
-    "typescript": "4.6.4",
-    "web3-utils": "^1.7.3"
+    "typescript": "4.6.4"
   }
 }

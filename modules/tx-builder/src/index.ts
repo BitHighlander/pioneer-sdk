@@ -14,7 +14,13 @@ import split from 'coinselect/split'
 const coinSelect = require('coinselect')
 let BigNumber = require('@ethersproject/bignumber')
 
-import { numberToHex } from 'web3-utils'
+// import { numberToHex } from 'web3-utils'
+function numberToHex(number: any) {
+    if (!Number.isInteger(number)) {
+        throw new Error('Input must be an integer.');
+    }
+    return '0x' + number.toString(16);
+}
 let {
     xpubConvert,
     bip32ToAddressNList,
