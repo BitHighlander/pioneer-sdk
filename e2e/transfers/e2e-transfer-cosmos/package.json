@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.18.0",
+    "@keepkey/hdwallet-keepkey-rest": "^1.40.29",
     "@keepkey/keepkey-sdk": "^0.2.25",
     "@pioneer-platform/loggerdog": "^8.1.17",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",

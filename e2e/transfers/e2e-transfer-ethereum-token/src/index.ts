@@ -24,8 +24,9 @@ let wait = require('wait-promise');
 let sleep = wait.sleep;
 
 let BLOCKCHAIN = 'ethereum'
-let ASSET = 'LUSD'
-let MIN_BALANCE = process.env['MIN_BALANCE_LUSD'] || "0.004"
+// let ASSET = 'LUSD'
+let ASSET = 'DAI'
+let MIN_BALANCE = process.env['MIN_BALANCE_DAI'] || "0.004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.001"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
@@ -115,26 +116,41 @@ const test_service = async function () {
             paths:[]
         }
         let app = new SDK.SDK(spec,config)
-        // log.debug(tag,"app: ",app)
-
+        log.info(tag,"app: ",app)
+        
         //get HDwallet
         // let wallet = await start_keepkey_controller()
         let wallet = await start_software_wallet()
         // log.debug(tag,"wallet: ",wallet)
         
+        //init with HDwallet
+        log.debug(tag,"Pre-init:")
+        let result = await app.init(wallet)
+        log.info(tag,"result: ",result)
+
+        //forget
+        // let resultForget = await result.Forget()
+        // log.info(tag,"resultForget: ",resultForget.data)
+        
         //get balance token
-        //path
         log.info(tag,"ASSET: ",ASSET)
         let path = app.paths.filter((e:any) => e.blockchain === BLOCKCHAIN)
         log.info("path: ",path)
         log.info("app.paths: ",app.paths)
         assert(path[0])
 
+        log.info("app.pubkeys: ",app.pubkeys)
         let pubkey = app.pubkeys.filter((e:any) => e.symbol === "ETH")
         log.info("pubkey: ",pubkey)
         log.info("app.pubkeys: ",app.pubkeys)
         assert(pubkey[0])
-
+        
+        //sync pubkey
+        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
+        log.info("pubkeySynced: ",pubkeySynced)
+        assert(pubkeySynced)
+        assert(pubkeySynced.balance)
+        
         let balance = app.balances.filter((e:any) => e.symbol === ASSET)
         log.info("balance: ",balance)
         log.info("balance: ",balance[0].balance)
@@ -142,15 +158,14 @@ const test_service = async function () {
         assert(balance[0])
         assert(balance[0].balance)
         
-        //init with HDwallet
-        log.debug(tag,"Pre-init:")
-        let result = await app.init(wallet)
-        log.debug(tag,"result: ",result)
-
+        //user selects balance to send
+        let selectedBalance = balance[0]
         let send = {
             blockchain:BLOCKCHAIN,
             network:"ETH", //eww
-            asset:ASSET,
+            asset:selectedBalance.symbol,
+            contract:selectedBalance.contract,
+            balance:selectedBalance.balance,
             address:FAUCET_ADDRESS,
             amount:TEST_AMOUNT,
             noBroadcast:true
@@ -162,12 +177,12 @@ const test_service = async function () {
         }
 
         console.log("tx: ",tx)
-        let invocationId = await app.build(tx)
-        log.info(tag,"invocationId: ",invocationId)
+        let invocation = await app.build(tx)
+        log.info(tag,"invocation: ",invocation)
 
         //sign
-        let resultSign = await app.sign(invocationId)
-        log.info(tag,"resultSign: ",resultSign)
+        invocation = await app.sign(invocation,wallet)
+        log.info(tag,"invocation: ",invocation)
 
         //broadcast
         // let payload = {
@@ -181,9 +196,11 @@ const test_service = async function () {
             sync:true,
             invocationId
         }
-        let resultBroadcast = await app.broadcast(payload)
+        invocation.broadcast = payload
+        let resultBroadcast = await app.broadcast(invocation)
         log.info(tag,"resultBroadcast: ",resultBroadcast)
-        //
+
+        
         // /*
         //     Status codes
         //     -1: errored

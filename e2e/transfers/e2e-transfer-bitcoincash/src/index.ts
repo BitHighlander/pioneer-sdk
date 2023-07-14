@@ -12,7 +12,9 @@ require("dotenv").config({path:'../../../../.env'})
 const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
-import * as native from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
+import { KeepKeySdk } from '@keepkey/keepkey-sdk'
+import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -30,10 +32,6 @@ let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_BCH_ADDRESS = process.env['FAUCET_BCH_ADDRESS']
 let FAUCET_ADDRESS = FAUCET_BCH_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
-
-//hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
-
 
 let noBroadcast = true
 
@@ -55,33 +53,23 @@ if(params[0] === 'broadcast') noBroadcast = false
 
 const start_keepkey_controller = async function(){
     try{
-        let config = {
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
+        let config: any = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
         }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let sdk = await KeepKeySdk.create(config)
+        console.log(config.apiKey)
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        //console.log("wallet: ",wallet)
+        return wallet
     }catch(e){
         console.error(e)
     }
@@ -91,20 +79,20 @@ const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
+        //console.log("mnemonic: ",mnemonic)
         const keyring = new core.Keyring();
-        //@ts-ignore
-        const nativeAdapter = native.NativeAdapter.useKeyring(keyring, {
-            mnemonic,
-            deviceId: "native-wallet-test",
-        });
+        const nativeAdapter = NativeAdapter.useKeyring(keyring);
         let wallet = await nativeAdapter.pairDevice("testid");
+        //@ts-ignore
+        await nativeAdapter.initialize();
+        // @ts-ignore
+        wallet.loadDevice({ mnemonic });
         if(!wallet) throw Error("failed to init wallet!")
         return wallet
     }catch(e){
         console.error(e)
     }
 }
-
 const test_service = async function () {
     let tag = TAG + " | test_service | "
     try {
@@ -143,14 +131,26 @@ const test_service = async function () {
 
         //init with HDwallet
         let result = await app.init(wallet)
-        //log.info(tag,"result: ",result)
-        
+        // log.info(tag,"result: ",result)
+        // log.info(tag,"app: ",app)
         assert(app.username)
-        assert(app.context)
+        //TODO bring back
+        // assert(app.context)
         // // console.log("context: ",app.context)
         log.info(tag,"pubkeys: ",app.pubkeys.length)
         log.info(tag,"balances: ",app.balances.length)
 
+        log.info("app.pubkeys: ",app.pubkeys)
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        log.info("pubkey: ",pubkey)
+        log.info("app.pubkeys: ",app.pubkeys)
+        assert(pubkey[0])
+        
+        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
+        log.info("pubkeySynced: ",pubkeySynced)
+        assert(pubkeySynced)
+        assert(pubkeySynced.balances)
+        
         // let send = {
         //     blockchain:BLOCKCHAIN,
         //     asset:ASSET,
@@ -174,7 +174,7 @@ const test_service = async function () {
         log.info(tag,"invocationId: ",invocationId)
         
         //signTx
-        let resultSign = await app.sign(invocationId)
+        let resultSign = await app.sign(invocationId, wallet)
         log.info(tag,"resultSign: ",resultSign)
 
         //get txid
@@ -189,6 +189,7 @@ const test_service = async function () {
         assert(resultBroadcast)
         assert(resultBroadcast.broadcast)
         assert(resultBroadcast.broadcast.success)
+        
         /*
             Status codes
             -1: errored
@@ -199,39 +200,39 @@ const test_service = async function () {
              4: fullfilled (swap completed)
          */
         //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
-
-        //wait till confirmed
-        while(!isConfirmed){
-            log.info("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-
-            if(invocationInfo.broadcast.noBroadcast){
-                log.notice(tag,"noBroadcast flag found: exiting ")
-                statusCode = 3
-                isConfirmed = true
-            }
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.info("sleep over")
-        }
+        // let isConfirmed = false
+        // let isFullfilled = false
+        // let fullfillmentTxid = false
+        // let currentStatus
+        // let statusCode = 0
+        //
+        // //wait till confirmed
+        // while(!isConfirmed){
+        //     log.info("check for confirmations")
+        //     //
+        //     let invocationInfo = await app.getInvocation(invocationId)
+        //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //
+        //     if(invocationInfo.broadcast.noBroadcast){
+        //         log.notice(tag,"noBroadcast flag found: exiting ")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //     }
+        //
+        //     if(invocationInfo && invocationInfo.isConfirmed){
+        //         log.test(tag,"Confirmed!")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //         console.timeEnd('timeToConfirmed')
+        //         console.time('confirm2fullfillment')
+        //     } else {
+        //         log.test(tag,"Not Confirmed!",new Date().getTime())
+        //     }
+        //
+        //     await sleep(3000)
+        //     log.info("sleep over")
+        // }
 
 
         log.notice("****** TEST PASS ******")

@@ -62,9 +62,6 @@ const start_keepkey_controller = async function(){
         let sdk = await KeepKeySdk.create(config)
         console.log(config.apiKey)
         const keyring = new core.Keyring();
-        // let adapter = KkRestAdapter.create()
-        // console.log("adapter: ",KkRestAdapter)
-        // let wallet = await KkRestAdapter.pairDevice(sdk)
         // @ts-ignore
         let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
         console.log("wallet: ",wallet)
@@ -107,10 +104,6 @@ const test_service = async function () {
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
         console.log(tag,' CHECKPOINT 3');
-        //forget
-        // log.info(tag,"app.pioneer: ",app.pioneer.instance)
-        // let resultForget = await app.pioneer.instance.Forget()
-        // log.info(tag,"resultForget: ",resultForget.data)
 
 
         //verify paths
@@ -140,7 +133,7 @@ const test_service = async function () {
         //init with HDwallet
         let result = await app.init(wallet)
         log.info(tag,"result: ",result)
-
+        
         //path
         log.info(tag,"ASSET: ",ASSET)
         let path = app.paths.filter((e:any) => e.symbol === ASSET)

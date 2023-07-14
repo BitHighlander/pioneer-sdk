@@ -14,6 +14,7 @@ const TAG  = " | e2e-test | "
 import * as core from "@shapeshiftoss/hdwallet-core";
 import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
 import { KeepKeySdk } from '@keepkey/keepkey-sdk'
+import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -121,7 +122,7 @@ const test_service = async function () {
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.info(tag,"result: ",result)
+        log.debug(tag,"result: ",result)
         
         //verify balance
         
@@ -141,11 +142,11 @@ const test_service = async function () {
 
         console.log("tx: ",tx)
         let invocationId = await app.build(tx)
-        log.info(tag,"invocationId: ",invocationId)
+        log.debug(tag,"invocationId: ",invocationId)
 
         //sign
         let resultSign = await app.sign(invocationId)
-        log.info(tag,"resultSign: ",resultSign)
+        log.debug(tag,"resultSign: ",resultSign)
 
         //broadcast
         // let payload = {
@@ -160,8 +161,8 @@ const test_service = async function () {
             invocationId
         }
         let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
-        //
+        log.debug(tag,"resultBroadcast: ",resultBroadcast)
+
         // /*
         //     Status codes
         //     -1: errored

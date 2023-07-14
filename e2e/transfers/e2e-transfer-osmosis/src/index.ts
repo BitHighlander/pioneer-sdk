@@ -117,8 +117,8 @@ const test_service = async function () {
         // log.debug(tag,"app: ",app)
 
         //get HDwallet
-        // let wallet = await start_keepkey_controller()
-        let wallet = await start_software_wallet()
+        let wallet = await start_keepkey_controller()
+        // let wallet = await start_software_wallet()
         // log.debug(tag,"wallet: ",wallet)
         
 
@@ -142,11 +142,11 @@ const test_service = async function () {
 
         console.log("tx: ",tx)
         let invocationId = await app.build(tx)
-        log.info(tag,"invocationId: ",invocationId)
+        log.debug(tag,"invocationId: ",invocationId)
 
         //sign
         let resultSign = await app.sign(invocationId)
-        log.info(tag,"resultSign: ",resultSign)
+        log.debug(tag,"resultSign: ",resultSign)
 
         //broadcast
         // let payload = {
@@ -161,7 +161,7 @@ const test_service = async function () {
             invocationId
         }
         let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
+        log.debug(tag,"resultBroadcast: ",resultBroadcast)
         //
         // /*
         //     Status codes
@@ -181,11 +181,11 @@ const test_service = async function () {
         //
         // //wait till confirmed
         // while(!isConfirmed){
-        //     log.info("check for confirmations")
+        //     log.debug("check for confirmations")
         //     //
         //     let invocationInfo = await app.getInvocation(invocationId)
         //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //     log.debug(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
         //
         //     if(invocationInfo.broadcast.noBroadcast){
         //         log.notice(tag,"noBroadcast flag found: exiting ")
@@ -204,7 +204,7 @@ const test_service = async function () {
         //     }
         //
         //     await sleep(3000)
-        //     log.info("sleep over")
+        //     log.debug("sleep over")
         // }
 
         log.notice("****** TEST PASS ******")

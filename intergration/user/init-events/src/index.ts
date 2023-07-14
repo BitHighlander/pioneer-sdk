@@ -103,24 +103,6 @@ const test_service = async function () {
         // let resultForget = await app.pioneer.instance.Forget()
         // log.info(tag,"resultForget: ",resultForget.data)
 
-
-        //verify paths
-        //NOTE bitcoin has 2 paths, and this is NOT equal to the number of blockchains
-        // log.info(tag,"blockchains: ",blockchains)
-        // log.info(tag,"paths: ",app.paths)
-        // log.info(tag,"paths: ",app.paths.length)
-        // log.info(tag,"blockchains: ",blockchains.length)
-        // if(app.paths.length !== blockchains.length){
-        //     let blockchainsInPaths:any = []
-        //     for(let i = 0; i < app.paths.length; i++){
-        //         blockchainsInPaths.push(app.paths[i].blockchain)
-        //     }
-        //     log.error(tag,"blockchains: ",blockchains)
-        //     log.error(tag,"blockchainsInPaths: ",blockchainsInPaths)
-        //     let missing = blockchainsInPaths.filter((item: string) => blockchains.indexOf(item) < 0);
-        //     log.info(tag,"missing: ",missing)
-        // }
-        // assert(app.paths.length === blockchains.length)
         
         //get HDwallet
         let wallet = await start_software_wallet()
@@ -147,6 +129,8 @@ const test_service = async function () {
         events.on('blocks', (event:any) => {
             log.info(tag,"***** blocks event!", event)
         });
+        
+        //perform search
         
         //send message
 

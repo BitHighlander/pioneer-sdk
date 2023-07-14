@@ -1,0 +1,18 @@
+declare const TAG = " | intergration-test | ";
+declare const log: any;
+declare let assert: any;
+declare let SDK: any;
+declare let wait: any;
+declare let sleep: any;
+declare let BLOCKCHAIN: string;
+declare let BLOCKCHAIN_OUTPUT: string;
+declare let ASSET: string;
+declare let MIN_BALANCE: string;
+declare let TEST_AMOUNT: string;
+declare let spec: string;
+declare let wss: string;
+declare let noBroadcast: boolean;
+declare let blockchains: string[];
+declare let txid: string;
+declare let IS_SIGNED: boolean;
+declare const test_service: () => Promise<void>;

@@ -22,8 +22,8 @@ let wait = require('wait-promise');
 
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'dogecoin'
-let ASSET = 'DOGE'
+let BLOCKCHAIN = 'ethereum'
+let ASSET = 'DAI'
 let MIN_BALANCE = process.env['MIN_BALANCE_DOGE'] || "1.0004"
 let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.005"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
@@ -64,9 +64,10 @@ const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
+        console.log("mnemonic: ",mnemonic)
         const keyring = new core.Keyring();
         const nativeAdapter = NativeAdapter.useKeyring(keyring);
-        let wallet = await nativeAdapter.pairDevice("testid");
+        let wallet = await nativeAdapter.pairDevice("testids");
         //@ts-ignore
         await nativeAdapter.initialize();
         // @ts-ignore
@@ -114,13 +115,13 @@ const test_service = async function () {
         console.time('start2build');
         console.time('start2broadcast');
         console.time('start2end');
-
         //if force new user
-        //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = process.env['PIONEER_QUERYKEY'];
+        const queryKey = "sdk:pair-keepkey:"+Math.random();
+        log.info(tag,"queryKey: ",queryKey)
+        // const queryKey = "key:66fefdd6-7ea9-48cf-8e69-fc74afb9c45412"
         assert(queryKey)
 
-        const username = process.env['PIONEER_USERNAME'];
+        const username = "user:66fefdd6-7ea9-48cf-8e69-fc74afb9c45412"
         assert(username)
         
         //add custom path
@@ -143,25 +144,6 @@ const test_service = async function () {
         // log.info(tag,"app.pioneer: ",app.pioneer.instance)
         // let resultForget = await app.pioneer.instance.Forget()
         // log.info(tag,"resultForget: ",resultForget.data)
-
-
-        //verify paths
-        //NOTE bitcoin has 2 paths, and this is NOT equal to the number of blockchains
-        // log.info(tag,"blockchains: ",blockchains)
-        // log.info(tag,"paths: ",app.paths)
-        // log.info(tag,"paths: ",app.paths.length)
-        // log.info(tag,"blockchains: ",blockchains.length)
-        // if(app.paths.length !== blockchains.length){
-        //     let blockchainsInPaths:any = []
-        //     for(let i = 0; i < app.paths.length; i++){
-        //         blockchainsInPaths.push(app.paths[i].blockchain)
-        //     }
-        //     log.error(tag,"blockchains: ",blockchains)
-        //     log.error(tag,"blockchainsInPaths: ",blockchainsInPaths)
-        //     let missing = blockchainsInPaths.filter((item: string) => blockchains.indexOf(item) < 0);
-        //     log.info(tag,"missing: ",missing)
-        // }
-        // assert(app.paths.length === blockchains.length)
         
         //get HDwallet
         let walletKeepKey = await start_keepkey_controller()
@@ -177,130 +159,184 @@ const test_service = async function () {
 
         log.debug(tag,"wallet: ",walletMetaMask)
         assert(walletMetaMask)
+        
+        //Fucking race conditon
+        await sleep(1000)
+        
+        //get pubkeys
+        log.info(tag,"app: ",app)
+        let pubkeysMetaMask = await app.getPubkeys(walletMetaMask)
+        assert(pubkeysMetaMask)
+        assert(pubkeysMetaMask.publicAddress)
+        assert(pubkeysMetaMask.context)
+        assert(pubkeysMetaMask.wallet)
+        assert(pubkeysMetaMask.pubkeys.length, 1)
+        log.info(tag,"pubkeysMetaMask: ",pubkeysMetaMask)
+        
+        //validate pubkeys
+        let pubkeysNative = await app.getPubkeys(walletSoftware)
+        assert(pubkeysNative)
+        assert(pubkeysNative.publicAddress)
+        assert(pubkeysNative.context)
+        assert(pubkeysNative.wallet)
+        assert(pubkeysNative.pubkeys.length, 9)
+        log.info(tag,"pubkeysNative: ",pubkeysNative)
+
+        let pubkeysKeepKey = await app.getPubkeys(walletKeepKey)
+        assert(pubkeysKeepKey)
+        assert(pubkeysKeepKey.publicAddress)
+        assert(pubkeysKeepKey.context)
+        assert(pubkeysKeepKey.wallet)
+        assert(pubkeysKeepKey.pubkeys.length, 9)
+        log.info(tag,"pubkeysKeepKey: ",pubkeysKeepKey)
 
         //init with metamask
-        let result = await app.init(walletMetaMask)
-        log.debug(tag,"result: ",result)
+        // let result = await app.init(walletMetaMask)
+        // log.info(tag,"result: ",result)
+        // assert(result)
+        
+        //init with software
+        // let result = await app.init(walletSoftware)
+        // log.info(tag,"result: ",result)
+        // assert(result)
 
-        //verify metamask is in description
+        //init with keepkey
+        let result = await app.init(walletKeepKey)
+        // log.info(tag,"result: ",result)
+        assert(result)
+        // assert(result.User)
+
+        //get balances for keepkey
+        //balances
+        log.info("app.balances: ",app.balances)
+        let balance1 = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance1: ",balance1)
+        log.info("balance1: ",balance1[0].balance)
+        assert(balance1)
+        assert(balance1[0])
+        assert(balance1[0].balance)
+        
         let user0 = await result.User()
         user0 = user0.data
-        log.debug(tag,"user0 user: ",user0)
-        log.debug(tag,"user0 wallets: ",user0.wallets)
-        log.debug(tag,"user0 walletDescriptions: ",user0.walletDescriptions)
+        // log.info(tag,"user0 user: ",user0)
+        log.info(tag,"user0 isFox: ",user0.isFox)
+        log.info(tag,"user0 isPioneer: ",user0.isPioneer)
+        log.info(tag,"user0 wallets: ",user0.wallets)
+        log.info(tag,"user0 walletDescriptions: ",user0.walletDescriptions)
         assert(user0)
         assert(user0.wallets)
         assert(user0.walletDescriptions)
         
         //get descripton
-        let descriptionMetamask = user0.walletDescriptions.filter((e:any) => e.type === "metamask")[0]
-        assert(descriptionMetamask)
-        
+        let descriptionKeepKey = user0.walletDescriptions.filter((e:any) => e.type === "keepkey")[0]
+        assert(descriptionKeepKey)
+
+        // let descriptionMetamask = user0.walletDescriptions.filter((e:any) => e.type === "metamask")[0]
+        // assert(descriptionMetamask)
+
+        //verify isFox
+        // assert(user0.isFox)
+
         //pair keepkey
-        let successKeepKey = await app.pairWallet(walletKeepKey)
-        log.info(tag,"successKeepKey: ",successKeepKey)
-        assert(successKeepKey)
-        await app.refresh()
+        // let successKeepKey = await app.pairWallet(walletKeepKey)
+        // log.info(tag,"successKeepKey: ",successKeepKey)
+        // assert(successKeepKey)
+        // app.refresh()
+        // log.info(tag,"checkpoint post refresh: ")
+        // let user1 = await result.User()
+        // user1 = user1.data
+        // log.info(tag,"user1 isFox: ",user1.isFox)
+        // log.info(tag,"user1 isPioneer: ",user1.isPioneer)
+        // log.info(tag,"user1 wallets: ",user1.wallets)
+        // log.info(tag,"user1 walletDescriptions: ",user1.walletDescriptions)
+        // assert(user1.wallets.length, 2)
+        // assert(user1.walletDescriptions.length, 2)
+
+        let successMetaMask = await app.pairWallet(walletMetaMask)
+        log.info(tag,"successMetaMask: ",successMetaMask)
+        assert(successMetaMask)
+        app.refresh()
         log.info(tag,"checkpoint post refresh: ")
+        
+        
         let user1 = await result.User()
         user1 = user1.data
-        log.debug(tag,"user: ",user1)
-        assert(user1)
-
-        log.debug(tag,"user: ",user1.walletDescriptions)
-        let keepkeyWalletDescription = user1.walletDescriptions.filter((e:any) => e.type === "keepkey")
-        assert(keepkeyWalletDescription)
-        log.debug(tag,"keepkeyWalletDescription: ",keepkeyWalletDescription)
-
-        //pair software
-        let successSoftware = await app.pairWallet(walletSoftware)
-        log.debug(tag,"successSoftware: ",successSoftware)
-        assert(successSoftware)
+        log.info(tag,"user1 isFox: ",user1.isFox)
+        log.info(tag,"user1 isPioneer: ",user1.isPioneer)
+        log.info(tag,"user1 wallets: ",user1.wallets)
+        log.info(tag,"user1 walletDescriptions: ",user1.walletDescriptions)
+        assert(user1.wallets.length, 2)
+        assert(user1.walletDescriptions.length, 2)
         
+        // assert(user1)
+        //Should be Pioneer now
+        // assert(user1.isPioneer)
+        
+        //pair softwareclea
+        let successSoftware = await app.pairWallet(walletSoftware)
+        log.info(tag,"successSoftware: ",successSoftware)
+        assert(successSoftware)
+
         //verify all are paired
 
         //User
         let user2 = await result.User()
         user2 = user2.data
-        log.debug(tag,"user: ",user2)
-        log.debug(tag,"user: ",user2.wallets)
-        log.debug(tag,"user: ",user2.walletDescriptions)
+        // log.info(tag,"user2: ",user2)
+        log.info(tag,"user2 wallets: ",user2.wallets)
+        log.info(tag,"user2 walletDescriptions: ",user2.walletDescriptions)
         //walletDescriptions
 
+        //
+        let metamaskWalletDescription = user2.walletDescriptions.filter((e:any) => e.type === "metamask")
+        assert(metamaskWalletDescription.length, 1)
+        log.info(tag,"metamaskWalletDescription: ",metamaskWalletDescription)
+
+        let keepkeyWalletDescription = user2.walletDescriptions.filter((e:any) => e.type === "keepkey")
+        assert(keepkeyWalletDescription.length, 1)
+        log.info(tag,"metamaskWalletDescription: ",metamaskWalletDescription)
+
         let nativeWalletDescription = user2.walletDescriptions.filter((e:any) => e.type === "native")
-        assert(nativeWalletDescription)
+        assert(nativeWalletDescription.length, 1)
         log.info(tag,"nativeWalletDescription: ",nativeWalletDescription)
+
+        // app.refresh()
+        // log.info(tag,"checkpoint post refresh: ")
+        //
+        // let nativeWalletDescription1 = user2.walletDescriptions.filter((e:any) => e.type === "native")
+        // assert(nativeWalletDescription1)
+        // log.info(tag,"nativeWalletDescription1: ",nativeWalletDescription1)
+        //
+        // let metamaskWalletDescription1 = user2.walletDescriptions.filter((e:any) => e.type === "metamask")
+        // assert(metamaskWalletDescription1)
+        // log.info(tag,"metamaskWalletDescription1: ",metamaskWalletDescription1)
+        //
+        // let keepkeyWalletDescription1 = user2.walletDescriptions.filter((e:any) => e.type === "keepkey")
+        // assert(keepkeyWalletDescription1)
+        // log.info(tag,"keepkeyWalletDescription1: ",keepkeyWalletDescription1)
+
+        //verify isPioneer
+        // assert(user2.isPioneer)
+        // assert(user2.pioneerImage)
+        // log.info(tag,"user2.pioneerImage: ",user2.pioneerImage)
+
+        //switch context to metamask and get address
+
         
-        await app.refresh()
-        //pair wallet metamask
-        
-        //pair wallet xdefi
-        
-        //pair wallet tallyho
-        
-        //pair wallet keplr
 
-        //path
-        log.debug(tag,"ASSET: ",ASSET)
-        let path = app.paths.filter((e:any) => e.symbol === ASSET)
-        log.debug("path: ",path)
-        log.debug("app.paths: ",app.paths.length)
-        assert(path[0])
-
-        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
-        log.debug("pubkey: ",pubkey)
-        log.debug("app.pubkeys: ",app.pubkeys.length)
-        assert(pubkey[0])
-
-        //verify you have a balance of selected asset
-        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
-        log.debug("balance: ",balance)
-        log.debug("balance: ",balance[0].balance)
-        assert(balance)
-        assert(balance[0])
-        assert(balance[0].balance)
-
-        //should have a default context always
-        let walletContext = await app.context
-        assert(walletContext)
-        log.info("walletContext: ",walletContext)
-
-        //set to current wallet
-        // let changeContext = await app.setWalletContext(walletContext)
-
-        let blockchainContext = await app.blockchainContext
-        assert(blockchainContext)
-        log.info("blockchainContext: ",blockchainContext)
-
-        //set blockchain context
-        let changeBlockchainContext = await app.setBlockchainContext(BLOCKCHAIN)
-        assert(changeBlockchainContext)
-        log.info("changeBlockchainContext: ",changeBlockchainContext)
-
-        let blockchainContextPost = await app.blockchainContext
-        assert(blockchainContextPost, BLOCKCHAIN)
-        log.info("blockchainContextPost: ",blockchainContextPost)
-
-        //set asset context
-        let assetContext = await app.assetContext
-        assert(assetContext)
-        log.info("assetContext: ",assetContext)
-
-        let changeAssetContext = await app.setAssetContext(ASSET)
-        assert(changeAssetContext)
-        log.info("changeAssetContext: ",changeAssetContext)
-
-        //set asset context
-        let assetContextPost = await app.assetContext
-        assert(assetContextPost, ASSET)
-        log.info("assetContextPost: ",assetContextPost)
-
-        //attempt to change wallet context to unpaired wallet
-
-        //attempt to change blockchain context to unsupported by current wallet
-
-        //attempt to change asset context to a unsupported asset of current blockchain
-
+        // //path
+        // log.debug(tag,"ASSET: ",ASSET)
+        // let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        // log.debug("path: ",path)
+        // log.debug("app.paths: ",app.paths.length)
+        // assert(path[0])
+        //
+        // let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        // log.debug("pubkey: ",pubkey)
+        // log.debug("app.pubkeys: ",app.pubkeys.length)
+        // assert(pubkey[0])
+        //
+        // //verify you have a balance of selected asset
         // let balance = app.balances.filter((e:any) => e.symbol === ASSET)
         // log.debug("balance: ",balance)
         // log.debug("balance: ",balance[0].balance)
@@ -308,101 +344,69 @@ const test_service = async function () {
         // assert(balance[0])
         // assert(balance[0].balance)
         
-        //get NFT's
+        //sync
+        log.info("app.pubkeys: ",app.pubkeys)
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === "ETH")
+        log.info("pubkey: ",pubkey)
+        log.info("app.pubkeys: ",app.pubkeys)
+        assert(pubkey[0])
         
-        //verify a pubkey for every chain
+        //sync pubkey
+        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
+        log.info("pubkeySynced: ",pubkeySynced)
+        assert(pubkeySynced)
+        assert(pubkeySynced.balances)
+        //balances
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
         
-        //refresh
-        // let resultRefresh = await app.refresh()
-        // log.info(tag,"resultRefresh: ",resultRefresh)
         
-        // let events = await app.startSocket()
+        //TODO context changing
+        // //should have a default context always
+        // let walletContext = await app.context
+        // assert(walletContext)
+        // log.info("walletContext: ",walletContext)
         //
-        // events.on('blocks', (event:any) => {
-        //     log.info(tag,"***** blocks event!", event)
-        // });
-        
-        //LOAD SEED TO KEEPKEY @TODO move to its own test
-        // //wipe
-        // let resultWipe = await wallet.wipe()
-        // log.info(tag,"resultWipe: ",resultWipe)
+        // //set to current wallet
+        // // let changeContext = await app.setWalletContext(walletContext)
         //
-        // //load
-        // console.log("WALLET_MAIN: ",process.env['WALLET_MAIN'])
-        // let resultLoad = await wallet.loadDevice({
-        //     mnemonic:process.env['WALLET_MAIN']
-        // })
-        // log.info(tag,"resultLoad: ",resultLoad)
-        
-        //expect
-        //xpub
-        //zpub6rLj8yHs3mXRYSGNBSbajrkwghwLtpZLJf16q8bETA2mhZsMQdcPhXE4QQJAkQMAv8wpVeZYWqm3V45zzyAYS7exCugndVv8F8PmGfBTC5i
+        // let blockchainContext = await app.blockchainContext
+        // assert(blockchainContext)
+        // log.info("blockchainContext: ",blockchainContext)
+        //
+        // //set blockchain context
+        // let changeBlockchainContext = await app.setBlockchainContext(BLOCKCHAIN)
+        // assert(changeBlockchainContext)
+        // log.info("changeBlockchainContext: ",changeBlockchainContext)
+        //
+        // let blockchainContextPost = await app.blockchainContext
+        // assert(blockchainContextPost, BLOCKCHAIN)
+        // log.info("blockchainContextPost: ",blockchainContextPost)
+        //
+        // //set asset context
+        // let assetContext = await app.assetContext
+        // assert(assetContext)
+        // log.info("assetContext: ",assetContext)
+        //
+        // let changeAssetContext = await app.setAssetContext(ASSET)
+        // assert(changeAssetContext)
+        // log.info("changeAssetContext: ",changeAssetContext)
+        //
+        // //set asset context
+        // let assetContextPost = await app.assetContext
+        // assert(assetContextPost, ASSET)
+        // log.info("assetContextPost: ",assetContextPost)
+        //
+        // //attempt to change wallet context to unpaired wallet
+        //
+        // //attempt to change blockchain context to unsupported by current wallet
+        //
+        // //attempt to change asset context to a unsupported asset of current blockchain
 
-        //iterate over pubkeys
-        //verify all are valid
-        // for(let i = 0; i < app.pubkeys.length; i++){
-        //     let pubkey = app.pubkeys[i]
-        //     // log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " pubkey: ",pubkey)
-        //     log.info(tag,pubkey.blockchain+ " path: "+pubkey.path + " script_type: "+pubkey.script_type+" pubkey: ",pubkey.pubkey)
-        //     assert(pubkey.pubkey)
-        // }
-
-        // let ethPubkeys = app.pubkeys.filter((e:any) => e.symbol === "ETH")
-        // log.info("ethPubkeys: ",ethPubkeys)
-        //
-        //
-        // let ethBalances = app.balances.filter((e:any) => e.symbol === "ETH")
-        // log.info("ethBalances: ",ethBalances)
-        // log.info("ethBalances: ",ethBalances[0].balance)
-
-        //update
-        // let refreshResult = await app.refresh()
-        // log.info("refreshResult: ",refreshResult)
-
-        // let refreshUpdate = await app.updateContext()
-        // log.info("refreshUpdate: ",refreshUpdate)
-        //
-        // // let ethBalances2 = app.balances.filter((e:any) => e.symbol === "ETH")
-        // // // log.info("ethBalances: ",ethBalances)
-        // // log.info("ethBalances2: ",ethBalances2[0].balance)
-        //
-
-        // let bitcoinPubkeys = app.pubkeys.filter((e:any) => e.symbol === "BTC")
-        // log.info("bitcoinPubkeys: ",bitcoinPubkeys)
-        //
-        // let bitcoinBalances = app.balances.filter((e:any) => e.symbol === "BTC")
-        // log.info("bitcoinBalances: ",bitcoinBalances)
-        //
-        // //verify usd value correct
-        // for(let i = 0; i < bitcoinBalances.length; i++){
-        //     let balance = bitcoinBalances[i]
-        //     log.info(tag,"** balance: ",balance.balance)
-        //     log.info(tag,"** priceUsd: ",balance.priceUsd)
-        // }
-        //
-        // //rune
-        // let runeBalance = app.balances.filter((e:any) => e.symbol === "RUNE")
-        // log.info("runeBalance: ",runeBalance)
-
-
-
-        // //get prefured pubkey
-        // let preferedPubkey = await app.getPubkey('BTC')
-        // log.info("preferedPubkey: ",preferedPubkey)
-        //
-        // //get balance (aggrate)
-        // // let preferedPubkey = app.getBalance('BTC')
-        // // log.info("preferedPubkey: ",preferedPubkey)
-        //
-        // //get address (of primary)
-        // let preferredAddy = await app.getAddress('BTC')
-        // log.info("preferredAddy: ",preferredAddy)
-        //
-        // //Test remote objects
-        // //get available inputs
-        // // assert(app.availableInputs)
-        // //get available outputs
-        // // assert(app.availableOutputs)
         
         //listen to events
         

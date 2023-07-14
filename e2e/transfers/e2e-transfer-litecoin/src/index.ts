@@ -13,6 +13,9 @@ const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
 import * as native from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
+import { KeepKeySdk } from '@keepkey/keepkey-sdk'
+import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -30,10 +33,6 @@ let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_LTC_ADDRESS = process.env['FAUCET_LTC_ADDRESS']
 let FAUCET_ADDRESS = FAUCET_LTC_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
-
-//hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller")
-
 
 let noBroadcast = true
 
@@ -55,33 +54,21 @@ if(params[0] === 'broadcast') noBroadcast = false
 
 const start_keepkey_controller = async function(){
     try{
-        let config = {
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
+        let config: any = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
         }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let sdk = await KeepKeySdk.create(config)
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        return wallet
     }catch(e){
         console.error(e)
     }

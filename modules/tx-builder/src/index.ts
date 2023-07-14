@@ -660,7 +660,7 @@ export class TxBuilder {
                     case 'avalanche':
                     case 'ethereum':
                         //#TODO handle erc20
-                        log.debug('EVM Tx type');
+                        log.info('EVM Tx type');
                         //get account info
                         log.info('tx: ',tx);
                         log.info('tx.pubkey: ',tx.pubkey);
@@ -669,41 +669,68 @@ export class TxBuilder {
                         let gas_limit = 80000 //TODO dynamic? lowerme?
 
                         //get nonce
-                        let nonceRemote = await this.pioneer.GetNonce(from)
+                        log.info(tag,"from: ",from)
+                        let nonceRemote = await this.pioneer.GetNonce({address:from})
                         nonceRemote = nonceRemote.data
-
+                        if(!nonceRemote) throw Error("unable to get nonce!")
+                        log.info(tag,"nonceRemote: ",nonceRemote)
+                        nonceRemote = parseInt(nonceRemote)
                         //get gas price
                         let gas_price = await this.pioneer.GetGasPrice()
                         gas_price = gas_price.data
-
+                        log.info(tag,"gas_price: ",gas_price)
+                        gas_price = parseInt(gas_price)
+                        
                         let nonce = nonceRemote // || override (for Replace manual Tx)
                         if(!nonce) throw Error("unable to get nonce!")
+                        log.info(tag,"nonce: ",nonce)
 
                         let value
-                        //if amount = max
-                        if(tx.amount === 'MAX'){
-                            let ethBalance = await this.pioneer.GetPubkeyBalance({asset:'ETH',pubkey:from})
-                            log.debug(tag,"ethBalance: ",ethBalance)
-
-                            let ethBalanceBase = nativeToBaseAmount(ethBalance)
-                            log.info(tag,"ethBalanceBase: ",ethBalanceBase)
-
-                            let transfer_cost = 21001
-                            gas_limit = 21000
+                        //if asset !== ETH then token send
+                        if(tx.asset !== 'ETH'){
+                            if(!tx.contract) throw Error("Missing contract address!")
+                            if(!tx.amount) throw Error("Missing amount!")
+                            let amount
+                            if(tx.amount === 'MAX'){
+                                amount = tx.balance
+                            } else {
+                                amount = tx.amount
+                            }
+                            //lookup precision for contract
                             
-                            let txFee = new BigNumber(gas_price).times(transfer_cost)
-                            log.info(tag,"txFee: ",txFee)
-                            log.info(tag,"txFee: ",txFee.toString())
+                            //get token info
+                            let tokenData = await this.pioneer.GetTransferData({toAddress:tx.toAddress, amount,contract:tx.contract});
+                            tokenData = tokenData.data;
+                            value = 0
+                            log.info(tag,"tokenData: ",tokenData)
+                            tx.data = tokenData;
+                        } else {
+                            //if amount = max
+                            if(tx.amount === 'MAX'){
+                                let ethBalance = await this.pioneer.GetPubkeyBalance({asset:'ETH',pubkey:from})
+                                log.debug(tag,"ethBalance: ",ethBalance)
 
-                            let amount = ethBalance.minus(txFee)
-                            log.info(tag,"amount ALL: ",amount)
-                            value = amount
+                                let ethBalanceBase = nativeToBaseAmount(ethBalance)
+                                log.info(tag,"ethBalanceBase: ",ethBalanceBase)
 
-                        }else{
-                            value = baseAmountToNative('ETH',tx.amount)
-                            if(!value) throw Error("unable to get value!")
-                            log.debug(tag,"value: ",value)
+                                let transfer_cost = 21001
+                                gas_limit = 21000
+
+                                let txFee = new BigNumber(gas_price).times(transfer_cost)
+                                log.info(tag,"txFee: ",txFee)
+                                log.info(tag,"txFee: ",txFee.toString())
+
+                                let amount = ethBalance.minus(txFee)
+                                log.info(tag,"amount ALL: ",amount)
+                                value = amount
+
+                            }else{
+                                value = baseAmountToNative('ETH',tx.amount)
+                                if(!value) throw Error("unable to get value!")
+                                log.debug(tag,"value: ",value)
+                            }    
                         }
+                        
 
                         let to = tx.toAddress
                         if(!to) throw Error("unable to to address!")
@@ -716,10 +743,12 @@ export class TxBuilder {
                         } else{
                             throw Error("Network not supported! network: "+tx.network)
                         }
-
+                        log.info(tag,"gas_price: ",gas_price)
+                        log.info(tag,"gas_limit: ",gas_limit)
                         //sign
-                        let ethTx = {
+                        let ethTx:any = {
                             // addressNList: support.bip32ToAddressNList(masterPathEth),
+                            from,
                             "addressNList":[
                                 2147483692,
                                 2147483708,
@@ -727,15 +756,32 @@ export class TxBuilder {
                                 0,
                                 0
                             ],
+                            data:tx.data || null,
                             nonce: numberToHex(nonce),
                             gasPrice: numberToHex(gas_price),
                             gasLimit: numberToHex(gas_limit),
                             value:numberToHex(value),
                             to,
-                            chainId
+                            chainId:numberToHex(chainId),
                         }
-
+                        log.info(tag,"ethTx: ",ethTx)
+                        let result = await this.pioneer.SmartInsight(ethTx);
+                        let insight = result.data
+                        log.info(tag,"insight: ",insight)
+                        //apply smart insight
+                        if (insight.recommended.gasPrice) {
+                            ethTx.gasPrice = insight.recommended.gasPrice;
+                        } else {
+                            delete ethTx.gasPrice
+                        }
+                        if (insight.recommended.maxFeePerGas) {
+                            ethTx.maxFeePerGas = insight.recommended.maxFeePerGas;
+                        }
+                        if (insight.recommended.maxPriorityFeePerGas) {
+                            ethTx.maxPriorityFeePerGas = insight.recommended.maxPriorityFeePerGas;
+                        }
                         unsignedTx = ethTx
+                        log.info(tag,"unsignedTx: ",unsignedTx)
                         break
                     case 'thorchain':
 

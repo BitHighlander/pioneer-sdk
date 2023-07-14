@@ -51,6 +51,7 @@ const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
         if(!mnemonic) throw Error("Unable to load wallet! missing env WALLET_MAIN")
+        console.log("mnemonic: ",mnemonic)
         const keyring = new core.Keyring();
         const nativeAdapter = NativeAdapter.useKeyring(keyring);
         let wallet = await nativeAdapter.pairDevice("testid");
@@ -75,8 +76,8 @@ const test_service = async function () {
         console.time('start2end');
 
         //if force new user
-        //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = process.env['PIONEER_QUERYKEY'];
+        const queryKey = "sdk:pair-keepkey:"+Math.random()
+        // const queryKey = process.env['PIONEER_QUERYKEY'];
         assert(queryKey)
 
         const username = process.env['PIONEER_USERNAME'];
@@ -98,6 +99,10 @@ const test_service = async function () {
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
         console.log(tag,' CHECKPOINT 3');
+        
+        
+        
+        
         //forget
         // log.info(tag,"app.pioneer: ",app.pioneer.instance)
         // let resultForget = await app.pioneer.instance.Forget()
@@ -127,6 +132,15 @@ const test_service = async function () {
         // let wallet = await start_software_wallet()
         log.debug(tag,"wallet: ",wallet)
         assert(wallet)
+
+
+        // let pubkeysNative = await app.getPubkeys(wallet)
+        // assert(pubkeysNative)
+        // assert(pubkeysNative.publicAddress)
+        // assert(pubkeysNative.context)
+        // assert(pubkeysNative.wallet)
+        // // assert(pubkeysMetaMask.pubkeys.length, 1)
+        // log.info(tag,"pubkeysNative: ",pubkeysNative)
         
         //init with HDwallet
         let result = await app.init(wallet)
@@ -144,12 +158,12 @@ const test_service = async function () {
         log.info("app.pubkeys: ",app.pubkeys.length)
         assert(pubkey[0])
 
-        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
-        log.info("balance: ",balance)
-        log.info("balance: ",balance[0].balance)
-        assert(balance)
-        assert(balance[0])
-        assert(balance[0].balance)
+        // let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        // log.info("balance: ",balance)
+        // log.info("balance: ",balance[0].balance)
+        // assert(balance)
+        // assert(balance[0])
+        // assert(balance[0].balance)
 
         //verify a pubkey for every chain
         

@@ -13,6 +13,9 @@ const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
 import * as native from "@shapeshiftoss/hdwallet-native";
+import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
+import { KeepKeySdk } from '@keepkey/keepkey-sdk'
+import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
 
 const log = require("@pioneer-platform/loggerdog")()
 let assert = require('assert')
@@ -51,33 +54,21 @@ let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
     try{
-        let config = {
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07"
+        let config: any = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
         }
-
-        //sub ALL events
-        let controller = new Controller.KeepKey(config)
-
-        //state
-        controller.events.on('state', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //errors
-        controller.events.on('error', function (request:any) {
-            console.log("state: ", request)
-        })
-
-        //logs
-        controller.events.on('logs', function (request:any) {
-            console.log("logs: ", request)
-        })
-
-        controller.init()
-
-        while(!controller.wallet){
-            await sleep(1000)
-        }
-        return controller.wallet
+        let sdk = await KeepKeySdk.create(config)
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        return wallet
     }catch(e){
         console.error(e)
     }
@@ -126,16 +117,16 @@ const test_service = async function () {
             paths:[]
         }
         let app = new SDK.SDK(spec,config)
-        log.info(tag,"app: ",app)
+        log.debug(tag,"app: ",app)
         //
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
-        log.info(tag,"wallet: ",wallet)
+        log.debug(tag,"wallet: ",wallet)
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.info(tag,"result: ",result)
+        log.debug(tag,"result: ",result)
 
         let send = {
             blockchain:BLOCKCHAIN,
@@ -151,13 +142,13 @@ const test_service = async function () {
             payload:send
         }
 
-        log.info("tx: ",tx)
+        log.debug("tx: ",tx)
         let invocationId = await app.build(tx)
-        log.info(tag,"invocationId: ",invocationId)
+        log.debug(tag,"invocationId: ",invocationId)
 
         //signTx
         let resultSign = await app.sign(invocationId)
-        log.info(tag,"resultSign: ",resultSign)
+        log.debug(tag,"resultSign: ",resultSign)
 
         
         //get txid
@@ -167,7 +158,7 @@ const test_service = async function () {
             invocationId
         }
         let resultBroadcast = await app.broadcast(payload)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
+        log.debug(tag,"resultBroadcast: ",resultBroadcast)
 
         assert(resultBroadcast)
         assert(resultBroadcast.broadcast)
@@ -176,7 +167,7 @@ const test_service = async function () {
 
         let checkTx = async function(){
             try{
-                log.info(tag,"checkTx")
+                log.debug(tag,"checkTx")
                 /*
                     Status codes
                     -1: errored
@@ -193,11 +184,11 @@ const test_service = async function () {
                 let currentStatus
                 let statusCode = 0
 
-                    log.info("check for confirmations")
+                    log.debug("check for confirmations")
                     //
                     let invocationInfo = await app.getInvocation(invocationId)
                     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-                    log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+                    log.debug(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
 
                     if(invocationInfo.broadcast.noBroadcast){
                         log.notice(tag,"noBroadcast flag found: exiting ")
@@ -225,7 +216,7 @@ const test_service = async function () {
         }
 
         app.events.events.on('blocks', (event:any) => {
-            log.info(tag,"blocks event!", event)
+            log.debug(tag,"blocks event!", event)
 
             checkTx()
 
@@ -250,11 +241,11 @@ const test_service = async function () {
         //
         // //wait till confirmed
         // while(!isConfirmed){
-        //     log.info("check for confirmations")
+        //     log.debug("check for confirmations")
         //     //
         //     let invocationInfo = await app.getInvocation(invocationId)
         //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //     log.debug(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
         //
         //     if(invocationInfo.broadcast.noBroadcast){
         //         log.notice(tag,"noBroadcast flag found: exiting ")
@@ -273,7 +264,7 @@ const test_service = async function () {
         //     }
         //
         //     await sleep(3000)
-        //     log.info("sleep over")
+        //     log.debug("sleep over")
         // }
         
     } catch (e) {
