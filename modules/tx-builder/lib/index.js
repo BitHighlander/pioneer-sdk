@@ -389,10 +389,21 @@ class TxBuilder {
                     case 'litecoin':
                     case 'dogecoin':
                         //
-                        log.debug(tag, "selectedWallets: ", tx.pubkey);
+                        log.info(tag, "pubkey: ", tx.pubkey);
+                        log.info(tag, "tx.pubkey.symbol: ", tx.pubkey.symbol);
+                        //get asset for network
+                        let asset = COIN_MAP_LONG[tx.pubkey.symbol];
+                        if (!asset)
+                            throw Error("imable to get asset for network: " + tx.pubkey.symbol);
                         //get btc fee rate
-                        let feeRateInfo = await this.pioneer.GetFeeInfo({ coin: "BTC" });
+                        let feeRateInfo = await this.pioneer.GetFeeInfo({ coin: tx.pubkey.symbol });
                         feeRateInfo = feeRateInfo.data;
+                        if (feeRateInfo.fast && feeRateInfo.fast.satsPerKiloByte) {
+                            feeRateInfo = feeRateInfo.fast.satsPerKiloByte;
+                            feeRateInfo = feeRateInfo / 1000;
+                        }
+                        if (!feeRateInfo)
+                            throw Error("Failed to get feeRateInfo!");
                         log.debug(tag, "feeRateInfo: ", feeRateInfo);
                         //get unspent from xpub
                         log.debug(tag, "tx.pubkey: ", tx.pubkey);
@@ -482,6 +493,8 @@ class TxBuilder {
                                 }
                             ];
                             //coinselect
+                            if (!feeRateInfo)
+                                throw Error("failed to get feeRateInfo!");
                             log.debug(tag, "input coinSelect: ", { utxos, targets, feeRateInfo });
                             selectedResults = coinSelect(utxos, targets, feeRateInfo);
                             log.info(tag, "result coinselect algo: ", selectedResults);
@@ -633,7 +646,7 @@ class TxBuilder {
                                 hdwalletTxDescription.opReturnData = memo;
                             }
                             else {
-                                hdwalletTxDescription.opReturnData = null;
+                                hdwalletTxDescription.opReturnData = "";
                             }
                             log.info(tag, "memo: ", memo);
                             unsignedTx = hdwalletTxDescription;

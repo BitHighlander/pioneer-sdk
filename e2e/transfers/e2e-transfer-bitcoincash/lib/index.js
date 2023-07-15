@@ -175,18 +175,16 @@ const test_service = async function () {
             type: 'sendToAddress',
             payload: send
         };
-        let invocationId = await app.build(tx);
-        log.info(tag, "invocationId: ", invocationId);
+        let invocation = await app.build(tx);
+        log.info(tag, "invocation: ", invocation);
         //signTx
-        let resultSign = await app.sign(invocationId, wallet);
-        log.info(tag, "resultSign: ", resultSign);
+        invocation = await app.sign(invocation, wallet);
+        log.info(tag, "resultSign: ", invocation);
         //get txid
-        let payload = {
-            noBroadcast: false,
-            sync: true,
-            invocationId
-        };
-        let resultBroadcast = await app.broadcast(payload);
+        invocation.network = ASSET; //TODO dont do this bullshit, use caip
+        invocation.noBroadcast = false;
+        invocation.sync = true;
+        let resultBroadcast = await app.broadcast(invocation);
         log.info(tag, "resultBroadcast: ", resultBroadcast);
         assert(resultBroadcast);
         assert(resultBroadcast.broadcast);

@@ -1301,16 +1301,18 @@ export class SDK {
                         unsignedTx = await this.sendToAddress(tx.payload)
                         log.debug(tag,"unsignedTx: ",unsignedTx)
                         if(!unsignedTx) throw Error("Failed to build sendToAddress!")
-                        
+                        if(!tx.payload.blockchain) throw Error("Missing blockchain in sendToAddress payload!")
                         invocation = {
                             type:'sendToAddress',
-                            network:tx.payload.network, //TODO move network to blockahin
+                            caip:tx.caip,
+                            network:tx.payload.blockchain, //TODO move network to caip
+                            blockchain:tx.payload.blockchain,
                             context:this.context,
                             username:this.username,
                             tx:tx.payload,
                             unsignedTx
                         }
-                        log.debug(tag,"Save sendToAddress invocation: ",invocation)
+                        log.info(tag,"Save sendToAddress invocation: ",invocation)
                         log.debug(tag,"Save sendToAddress invocation: ",JSON.stringify(invocation))
                         // result = await this.invoke.invoke(invocation)
                         log.debug(tag,"result: ",result)
@@ -1380,8 +1382,7 @@ export class SDK {
                 log.info(tag,"invocation: ",invocation)
                 log.info(tag,"*** invocation: ",JSON.stringify(invocation))
 
-                let blockchain = COIN_MAP_LONG[invocation.network]
-                log.info(tag,"invocation: ",invocation)
+                let blockchain = invocation.blockchain
 
                 if(!invocation.unsignedTx) throw Error("Unable to sign tx! missing unsignedTx")
                 let unsignedTx = invocation.unsignedTx
@@ -1489,8 +1490,6 @@ export class SDK {
         this.broadcast = async function (invocation:any) {
             let tag = TAG + " | broadcast | "
             try {
-                //if(!broadcast.invocationId) throw Error("invocationId missing!")
-                //let invocation = await this.getInvocation(broadcast.invocationId)
 
                 if(!invocation.signedTx) throw Error("Can not broadcast before being signed!")
                 if(!invocation.network) throw Error("invalid invocation missing network!")
@@ -1505,7 +1504,7 @@ export class SDK {
                     serialized:broadcastPayload,
                     txid:invocation.signedTx.txid || "unknown", //TODO get txid before broadcast on all chains!
                     invocationId: "notSet",
-                    noBroadcast:invocation.broadcast.noBroadcast
+                    noBroadcast:invocation.noBroadcast
                 }
 
                 log.debug(tag,"broadcastBodyTransfer: ",broadcastBodyTransfer)
