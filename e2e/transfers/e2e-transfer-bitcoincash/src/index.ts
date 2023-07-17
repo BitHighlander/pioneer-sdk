@@ -12,6 +12,7 @@ require("dotenv").config({path:'../../../../.env'})
 const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
+import * as native from "@shapeshiftoss/hdwallet-native";
 import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
 import { KeepKeySdk } from '@keepkey/keepkey-sdk'
 import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
@@ -169,10 +170,10 @@ const test_service = async function () {
             type:'sendToAddress',
             payload:send
         }
-        
+        log.info(tag,"invocation: ",tx)
         let invocation = await app.build(tx)
         log.info(tag,"invocation: ",invocation)
-        
+
         //signTx
         invocation = await app.sign(invocation, wallet)
         log.info(tag,"resultSign: ",invocation)
@@ -183,6 +184,7 @@ const test_service = async function () {
         invocation.sync = true
         let resultBroadcast = await app.broadcast(invocation)
         log.info(tag,"resultBroadcast: ",resultBroadcast)
+        log.info(tag,"resultBroadcast: ",JSON.stringify(resultBroadcast))
 
         assert(resultBroadcast)
         assert(resultBroadcast.broadcast)

@@ -1305,9 +1305,9 @@ export class SDK {
                         invocation = {
                             type:'sendToAddress',
                             caip:tx.caip,
+                            context:tx.payload.context,
                             network:tx.payload.blockchain, //TODO move network to caip
                             blockchain:tx.payload.blockchain,
-                            context:this.context,
                             username:this.username,
                             tx:tx.payload,
                             unsignedTx
@@ -1334,7 +1334,7 @@ export class SDK {
                         invocation = {
                             type:'swap',
                             network:tx.payload.network, //TODO move network to blockahin
-                            context:this.context,
+                            context:tx.payload.context,
                             username:this.username,
                             swap:tx.payload,
                             tx:quote,
@@ -1380,6 +1380,8 @@ export class SDK {
             try {
                 if(!wallet) throw Error("Must pass wallet to sign!")
                 log.info(tag,"invocation: ",invocation)
+                // log.info(tag,"wallet: ",wallet)
+
                 log.info(tag,"*** invocation: ",JSON.stringify(invocation))
 
                 let blockchain = invocation.blockchain
@@ -1391,6 +1393,20 @@ export class SDK {
                 let txid:any
                 let txFinal:any
                 let buffer:any
+                
+                //validate that context of invoation matchs wallet
+                //Unsigned TX
+                let addressInfo = {
+                    addressNList: [2147483692, 2147483708, 2147483648, 0, 0],
+                    coin: 'Ethereum',
+                    scriptType: 'ethereum',
+                    showDisplay: false
+                }
+                let ethAddress = await wallet.ethGetAddress(addressInfo)
+                let walletContextGiven = ethAddress+".wallet"
+                log.info(tag,"walletContextGiven: ",walletContextGiven)
+                log.info(tag,"invocation.context: ",invocation.context)
+                if(walletContextGiven !== invocation.context) throw Error("Invalid context! wallet context does not match invocation context!")
 
                 log.debug(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                 switch (blockchain) {
@@ -1437,7 +1453,7 @@ export class SDK {
                         
                         // buffer = Buffer.from(JSON.stringify(txSigned.serialized), 'base64');
                         // txid = cryptoTools.createHash('sha256').update(buffer).digest('hex').toUpperCase()
-                        //
+
                         // txSigned.txid = txid
                         txSigned.serialized = txSigned.serialized
                         break;
@@ -1477,8 +1493,8 @@ export class SDK {
                 invocation.signedTx = txSigned
 
                 //update invocation
-                let resultUpdate = await this.updateInvocation(invocation)
-                log.debug(tag,"resultUpdate: ",resultUpdate)
+                // let resultUpdate = await this.updateInvocation(invocation)
+                // log.debug(tag,"resultUpdate: ",resultUpdate)
 
                 return invocation
             } catch (e) {
@@ -1855,10 +1871,12 @@ export class SDK {
                     //select largest balance
                     //let largest =
                 }
-
+                //if needed change context?
+                
                 //transferTx
                 let transferTx = {
                     type:"transfer",
+                    context:tx.context,
                     blockchain:tx.blockchain,
                     balance:tx.balance,
                     contract:tx.contract,

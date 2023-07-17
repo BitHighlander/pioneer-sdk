@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.18.0",
-    "@keepkey/hdwallet-keepkey-rest": "^1.40.29",
+    "@keepkey/hdwallet-keepkey-rest": "^1.40.35",
+    "@keepkey/keepkey-sdk": "0.2.49",
     "@pioneer-platform/loggerdog": "^8.1.17",
     "@shapeshiftoss/hdwallet-core": "^1.22.0",
     "@shapeshiftoss/hdwallet-native": "^1.22.0",
@@ -34,7 +35,6 @@
     "crypto-js": "^4.1.1",
     "dotenv": "^6.2.0",
     "elliptic": "^6.5.4",
-    "fastestsmallesttextencoderdecoder-encodeinto": "^1.0.22",
     "jest": "^28.1.0",
     "typescript": "4.6.4",
     "usb": "^2.4.1",

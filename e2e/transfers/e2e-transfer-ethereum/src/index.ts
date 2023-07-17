@@ -115,93 +115,103 @@ const test_service = async function () {
         log.debug(tag,"app: ",app)
 
         //get HDwallet
-        let wallet = await start_keepkey_controller()
-        // let wallet = await start_software_wallet()
-        log.debug(tag,"wallet: ",wallet)
+        // let wallet = await start_keepkey_controller()
+        let wallet = await start_software_wallet()
+        // log.debug(tag,"wallet: ",wallet)
 
         //init with HDwallet
         let result = await app.init(wallet)
         log.debug(tag,"result: ",result)
-
+        assert(app.username)
+        log.info(tag,"pubkeys: ",app.pubkeys.length)
+        log.info(tag,"balances: ",app.balances.length)
+        log.info("app.pubkeys: ",app.pubkeys)
+        let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
+        log.info("pubkey: ",pubkey)
+        log.info("app.pubkeys: ",app.pubkeys)
+        assert(pubkey[0])
+        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
+        log.info("pubkeySynced: ",pubkeySynced)
+        assert(pubkeySynced)
+        assert(pubkeySynced.balances)
+        
         let send = {
+            context:pubkeySynced.context,
             blockchain:BLOCKCHAIN,
             asset:ASSET,
             address:FAUCET_ADDRESS,
-            amount:TEST_AMOUNT,
-            noBroadcast:true
+            amount:TEST_AMOUNT
         }
 
         let tx = {
             type:'sendToAddress',
+            context:pubkeySynced.context,
             payload:send
         }
 
         console.log("tx: ",tx)
-        let invocationId = await app.build(tx)
-        log.debug(tag,"invocationId: ",invocationId)
+        //build
+        let invocation = await app.build(tx)
+        log.info(tag,"invocation: ",invocation)
 
         //sign
-        let resultSign = await app.sign(invocationId)
-        log.debug(tag,"resultSign: ",resultSign)
+        invocation= await app.sign(invocation, wallet)
+        log.info(tag,"invocation: ",invocation)
+        invocation.coin = send.asset
+        invocation.noBroadcast = false
+        invocation.sync = true
 
         //broadcast
-        // let payload = {
-        //     noBroadcast:true,
-        //     sync:false
+        let resultBroadcast = await app.broadcast(invocation)
+        log.info(tag,"resultBroadcast: ",resultBroadcast)
+        log.info(tag,"resultBroadcast: ",JSON.stringify(resultBroadcast))
+        assert(resultBroadcast)
+        assert(resultBroadcast.broadcast)
+        assert(resultBroadcast.broadcast.success)
+        
+        // /*
+        //     Status codes
+        //     -1: errored
+        //      0: unknown
+        //      1: built
+        //      2: broadcasted
+        //      3: confirmed
+        //      4: fullfilled (swap completed)
+        //  */
+        // //monitor tx lifecycle
+        // let isConfirmed = false
+        // let isFullfilled = false
+        // let fullfillmentTxid = false
+        // let currentStatus
+        // let statusCode = 0
+        //
+        // //wait till confirmed
+        // while(!isConfirmed){
+        //     log.debug("check for confirmations")
+        //     //
+        //     let invocationInfo = await app.getInvocation(invocationId)
+        //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+        //     log.debug(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //
+        //     if(invocationInfo.broadcast.noBroadcast){
+        //         log.notice(tag,"noBroadcast flag found: exiting ")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //     }
+        //
+        //     if(invocationInfo && invocationInfo.isConfirmed){
+        //         log.test(tag,"Confirmed!")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //         console.timeEnd('timeToConfirmed')
+        //         console.time('confirm2fullfillment')
+        //     } else {
+        //         log.test(tag,"Not Confirmed!",new Date().getTime())
+        //     }
+        //
+        //     await sleep(3000)
+        //     log.debug("sleep over")
         // }
-
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        let resultBroadcast = await app.broadcast(payload)
-        log.debug(tag,"resultBroadcast: ",resultBroadcast)
-
-        /*
-            Status codes
-            -1: errored
-             0: unknown
-             1: built
-             2: broadcasted
-             3: confirmed
-             4: fullfilled (swap completed)
-         */
-        //monitor tx lifecycle
-        let isConfirmed = false
-        let isFullfilled = false
-        let fullfillmentTxid = false
-        let currentStatus
-        let statusCode = 0
-
-        //wait till confirmed
-        while(!isConfirmed){
-            log.debug("check for confirmations")
-            //
-            let invocationInfo = await app.getInvocation(invocationId)
-            log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.debug(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-
-            if(invocationInfo.broadcast.noBroadcast){
-                log.notice(tag,"noBroadcast flag found: exiting ")
-                statusCode = 3
-                isConfirmed = true
-            }
-
-            if(invocationInfo && invocationInfo.isConfirmed){
-                log.test(tag,"Confirmed!")
-                statusCode = 3
-                isConfirmed = true
-                console.timeEnd('timeToConfirmed')
-                console.time('confirm2fullfillment')
-            } else {
-                log.test(tag,"Not Confirmed!",new Date().getTime())
-            }
-
-            await sleep(3000)
-            log.debug("sleep over")
-        }
 
         log.notice("****** TEST PASS ******")
         //process

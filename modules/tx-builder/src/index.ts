@@ -698,6 +698,7 @@ export class TxBuilder {
                         let value
                         //if asset !== ETH then token send
                         if(tx.asset !== 'ETH'){
+                            log.info(tag," Building ERC20 Tx")
                             if(!tx.contract) throw Error("Missing contract address!")
                             if(!tx.amount) throw Error("Missing amount!")
                             let amount
@@ -707,10 +708,13 @@ export class TxBuilder {
                                 amount = tx.amount
                             }
                             //lookup precision for contract
-                            
+
+                            //to to Address as contract
+                            tx.toAddress = tx.contract
                             //get token info
-                            let tokenData = await this.pioneer.GetTransferData({toAddress:tx.toAddress, amount,contract:tx.contract});
+                            let tokenData = await this.pioneer.GetTransferData({toAddress:tx.toAddress, amount, contract:tx.contract});
                             tokenData = tokenData.data;
+                            if(!tokenData) throw Error("unable to get tokenData!")
                             value = 0
                             log.info(tag,"tokenData: ",tokenData)
                             tx.data = tokenData;
@@ -766,7 +770,7 @@ export class TxBuilder {
                                 0,
                                 0
                             ],
-                            data:tx.data || null,
+                            data:tx.data || "",
                             nonce: numberToHex(nonce),
                             gasPrice: numberToHex(gas_price),
                             gasLimit: numberToHex(gas_limit),
@@ -775,7 +779,9 @@ export class TxBuilder {
                             chainId:numberToHex(chainId),
                         }
                         log.info(tag,"ethTx: ",ethTx)
-                        let result = await this.pioneer.SmartInsight(ethTx);
+                        let payload = ethTx
+                        if(!payload.data) payload.data = "0x"
+                        let result = await this.pioneer.SmartInsight(payload);
                         let insight = result.data
                         log.info(tag,"insight: ",insight)
                         //apply smart insight

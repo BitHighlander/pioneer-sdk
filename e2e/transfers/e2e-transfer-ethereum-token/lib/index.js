@@ -143,7 +143,6 @@ const test_service = async function () {
         // let resultForget = await result.Forget()
         // log.info(tag,"resultForget: ",resultForget.data)
         //get balance token
-        //path
         log.info(tag, "ASSET: ", ASSET);
         let path = app.paths.filter((e) => e.blockchain === BLOCKCHAIN);
         log.info("path: ", path);
@@ -154,6 +153,11 @@ const test_service = async function () {
         log.info("pubkey: ", pubkey);
         log.info("app.pubkeys: ", app.pubkeys);
         assert(pubkey[0]);
+        //sync pubkey
+        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true);
+        log.info("pubkeySynced: ", pubkeySynced);
+        assert(pubkeySynced);
+        assert(pubkeySynced.balances);
         let balance = app.balances.filter((e) => e.symbol === ASSET);
         log.info("balance: ", balance);
         log.info("balance: ", balance[0].balance);
@@ -164,13 +168,13 @@ const test_service = async function () {
         let selectedBalance = balance[0];
         let send = {
             blockchain: BLOCKCHAIN,
+            context: pubkeySynced.context,
             network: "ETH",
             asset: selectedBalance.symbol,
             contract: selectedBalance.contract,
             balance: selectedBalance.balance,
             address: FAUCET_ADDRESS,
-            amount: TEST_AMOUNT,
-            noBroadcast: true
+            amount: TEST_AMOUNT
         };
         let tx = {
             type: 'sendToAddress',
@@ -182,18 +186,8 @@ const test_service = async function () {
         //sign
         invocation = await app.sign(invocation, wallet);
         log.info(tag, "invocation: ", invocation);
-        //broadcast
-        // let payload = {
-        //     noBroadcast:true,
-        //     sync:false
-        // }
-        //get txid
-        let payload = {
-            noBroadcast: false,
-            sync: true,
-            invocationId
-        };
-        invocation.broadcast = payload;
+        invocation.noBroadcast = false;
+        invocation.sync = true;
         let resultBroadcast = await app.broadcast(invocation);
         log.info(tag, "resultBroadcast: ", resultBroadcast);
         // /*

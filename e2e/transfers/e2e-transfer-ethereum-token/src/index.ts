@@ -149,7 +149,7 @@ const test_service = async function () {
         let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
         log.info("pubkeySynced: ",pubkeySynced)
         assert(pubkeySynced)
-        assert(pubkeySynced.balance)
+        assert(pubkeySynced.balances)
         
         let balance = app.balances.filter((e:any) => e.symbol === ASSET)
         log.info("balance: ",balance)
@@ -162,13 +162,13 @@ const test_service = async function () {
         let selectedBalance = balance[0]
         let send = {
             blockchain:BLOCKCHAIN,
+            context:pubkeySynced.context,
             network:"ETH", //eww
             asset:selectedBalance.symbol,
             contract:selectedBalance.contract,
             balance:selectedBalance.balance,
             address:FAUCET_ADDRESS,
-            amount:TEST_AMOUNT,
-            noBroadcast:true
+            amount:TEST_AMOUNT
         }
 
         let tx = {
@@ -183,20 +183,9 @@ const test_service = async function () {
         //sign
         invocation = await app.sign(invocation,wallet)
         log.info(tag,"invocation: ",invocation)
-
-        //broadcast
-        // let payload = {
-        //     noBroadcast:true,
-        //     sync:false
-        // }
-
-        //get txid
-        let payload = {
-            noBroadcast:false,
-            sync:true,
-            invocationId
-        }
-        invocation.broadcast = payload
+        
+        invocation.noBroadcast = false
+        invocation.sync = true
         let resultBroadcast = await app.broadcast(invocation)
         log.info(tag,"resultBroadcast: ",resultBroadcast)
 
