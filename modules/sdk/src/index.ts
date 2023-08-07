@@ -46,6 +46,12 @@ const Events = require("@pioneer-platform/pioneer-events")
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
+let WALLET_ICONS:any = {
+    'keepkey':"https://pioneers.dev/coins/keepkey.png",
+    'native':"https://pioneers.dev/coins/pioneer.png",
+    'metamask':"https://pioneers.dev/coins/metamask.png",
+}
+
 export class SDK {
     public events: any;
     public masters:any
@@ -53,6 +59,7 @@ export class SDK {
     public ibcChannels:any[]
     public paymentStreams:any[]
     public wallets: any[];
+    public wallet: any;
     public nfts:any[]
     public totalValueUsd: number;
     public markets: any;
@@ -87,7 +94,7 @@ export class SDK {
     public init: (wallet:any) => Promise<void>;
     public refresh: () => Promise<any>;
     public pairWallet: (wallet: any) => Promise<any>;
-    public setWalletContext: (context: string) => Promise<any>;
+    // public setWalletContext: (context: string) => Promise<any>;
     public setBlockchainContext: (blockchain: string) => Promise<any>;
     public setAssetContext: (blockchain: string) => Promise<any>;
     public startSocket: () => Promise<any>;
@@ -118,6 +125,8 @@ export class SDK {
     public getInvocations: () => Promise<any>;
     public isSynced: boolean;
     publicAddress: string;
+    public setContext: (wallet: any) => Promise<string>;
+    private disconnectWallet: (context: string) => Promise<any>;
     constructor(spec:string,config:any) {
         this.status = 'preInit'
         this.apiVersion = ""
@@ -176,6 +185,7 @@ export class SDK {
                         throw Error("can not init: Unhandled Wallet type!")
                     }
                     this.isConnected = true
+                    this.setContext(wallet)
                 }
 
                 let PioneerClient = new Pioneer(config.spec,config)
@@ -204,7 +214,7 @@ export class SDK {
                 //get health from server
                 let health = await this.pioneer.Health()
                 if(!health.data.online) throw Error("Pioneer Server offline!")
-                log.info(tag,"pioneer health: ",health.data)
+                log.debug(tag,"pioneer health: ",health.data)
 
                 //get status from server
                 let status = await this.pioneer.Status()
@@ -217,12 +227,11 @@ export class SDK {
                 //get user info
                 let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
-                log.info(tag,"1 userInfo: ",userInfo)
+                log.debug(tag,"1 userInfo: ",userInfo)
                 this.user = userInfo
-
                 
                 if(userInfo && userInfo.pubkeys){
-                    log.info(tag,"Validating pubkeys!: ",userInfo)
+                    log.debug(tag,"Validating pubkeys!: ",userInfo)
                     //verify 1 path for each blockchain enabled
                     let pubkeyChains:any = []
                     for(let i = 0; i < userInfo.pubkeys.length; i++) {
@@ -234,56 +243,54 @@ export class SDK {
                     }
                     //unique
                     pubkeyChains = [ ...new Set(pubkeyChains)]
-                    log.info(tag,"pubkeyChains: ",pubkeyChains)
-                    log.info(tag,"pubkeyChains: ",pubkeyChains.length)
-                    log.info(tag,"blockchains: ",this.blockchains.length)
-                    log.info(tag,"blockchains: ",this.blockchains)
+                    log.debug(tag,"pubkeyChains: ",pubkeyChains)
+                    log.debug(tag,"pubkeyChains: ",pubkeyChains.length)
+                    log.debug(tag,"blockchains: ",this.blockchains.length)
+                    log.debug(tag,"blockchains: ",this.blockchains)
                     //get missing
                     let missingBlockchains = pubkeyChains
                         .filter((x: any) => !this.blockchains.includes(x))
                         .concat(this.blockchains.filter((x: any) => !pubkeyChains.includes(x)));
-                    log.info(tag,"missingBlockchains: ",missingBlockchains)
+                    log.debug(tag,"missingBlockchains: ",missingBlockchains)
                     //register missing
                     if(missingBlockchains && missingBlockchains.length > 0){
                         if(wallet){
-                            log.info(tag,"Detected Wallet out of sync with server! syncing")
+                            log.debug(tag,"Detected Wallet out of sync with server! syncing")
                             let resultPair = await this.pairWallet(wallet)
-                            log.info (tag,"resultPair: ",resultPair)
+                            log.debug (tag,"resultPair: ",resultPair)
                             //
                             if(resultPair.data.context)this.context = resultPair.data.context
                             if(resultPair.data.balance)this.balances = resultPair.data.balance
-                            if(resultPair.data.wallets)this.wallets = resultPair.data.wallets
                             if(resultPair.data.isSynced)this.isSynced = resultPair.data.isSynced
                             if(resultPair.data.pubkeys)this.pubkeys = resultPair.data.pubkeys
                         } else {
                             log.error("Missing pubkey info for blockchain! and wallet not paired! unable to sync")
                         }
                     } else {
-                        log.info(tag,"All pubkeys found!")
+                        log.debug(tag,"All pubkeys found!")
                     }
                                     
                     if(userInfo.balances) {
-                        log.info(tag,"Balances found! balances: ",userInfo.balances)
-                        log.info(tag,"Balances found! balances: ",userInfo.balances.length)
+                        log.debug(tag,"Balances found! balances: ",userInfo.balances)
+                        log.debug(tag,"Balances found! balances: ",userInfo.balances.length)
                         this.balances = userInfo.balances
                         this.nfts = userInfo.nfts
                     }
-                    
+                    if(userInfo.context) this.context = userInfo.context
                 }
 
                 if(!userInfo || userInfo.error) {
                     //no wallets paired
-                    log.info(tag, "user not registered! info: ",userInfo)
+                    log.debug(tag, "user not registered! info: ",userInfo)
                     if(wallet){
                         let result = await this.pairWallet(wallet)
                         //
                         if(result.data.context)this.context = result.data.context
                         if(result.data.balances)this.balances = result.data.balances
-                        if(result.data.wallets)this.wallets = result.data.wallets
                         if(result.data.isSynced)this.isSynced = result.data.isSynced
                         if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
                     } else {
-                        log.info("no wallet found, and no user found, registering empty user!")
+                        log.debug("no wallet found, and no user found, registering empty user!")
                         let register = {
                             username:this.username,
                             blockchains:this.blockchains,
@@ -300,20 +307,25 @@ export class SDK {
                             auth:'lol',
                             provider:'lol'
                         }
-                        log.info(tag,"register payload: ",register)
+                        log.debug(tag,"register payload: ",register)
                         let result = await this.pioneer.Register(register)
-                        log.info(tag,"register result: ",result.data)
+                        log.debug(tag,"register result: ",result.data)
 
                         //context
                         if(result.data.context)this.balances = result.data.context
                         if(result.data.balances)this.balances = result.data.balances
-                        if(result.data.wallets)this.wallets = result.data.wallets
                         if(result.data.isSynced)this.isSynced = result.data.isSynced
                         if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
-
                     }
                 }
-
+                //if no context
+                if(!this.context) {
+                    if(this.wallets[0].context) {
+                        this.context = this.wallets[0].context
+                    } else {
+                        log.info(tag,'not wallets paired!')
+                    }
+                }
                 //done registering, now get the user
                 //this.refresh()
                 if(!this.pioneer) throw Error("Failed to init pioneer server!")
@@ -322,14 +334,66 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
+        this.setContext = async function (wallet:any) {
+            let tag = TAG + " | setContext | "
+            try{
+                //get wallet context
+                if(!wallet) throw Error("Can only set context of a paired wallet!")
+                log.info(tag,"wallet type: ",wallet.type)
+                log.info(tag,"wallet: ",wallet)
+                let ethAddress
+                if(wallet.type === 'metamask') {
+                    ethAddress = 'metamask'
+                }else{
+                    //get eth address
+                    const addressInfo = {
+                        addressNList: [2147483692, 2147483708, 2147483648, 0, 0],
+                        coin: "Ethereum",
+                        scriptType: "ethereum",
+                        showDisplay: false,
+                    };
+                    ethAddress = await wallet.ethGetAddress(addressInfo)
+                    log.debug(tag,"ethAddress: ",ethAddress)
+                }
+                if(!ethAddress) throw Error("Failed to get eth address!")
+                //get context
+                let context = ethAddress+".wallet.json"
+                log.info(tag,"context: ",context)
+                this.context = context
+                this.wallet = wallet
+                let walletInfo: any = {
+                    context: context,
+                    type: wallet.type,
+                    icon: WALLET_ICONS[wallet.type],
+                    status: 'connected',
+                    wallet
+                };
+                const isContextExist = this.wallets.some((wallet: any) => wallet.context === context);
+                isContextExist ? null : this.wallets.push(walletInfo);
+                
+                if(context && this.context && this.context !== context){
+                    let result = await this.pioneer.SetContext({context})
+                    log.debug(tag,"result: ",result)
+                    //if success
+                    this.context = context
+                    this.wallet = wallet
+                    return result.data
+                }else{
+                    return {success:false,error:"already context="+context}
+                }
+            }catch(e){
+                log.error(tag,e)
+                throw e
+            }
+        },
         this.pairWallet = async function (wallet:any) {
             let tag = TAG + " | pairWallet | "
             try {
-                log.info(tag,"Pairing Wallet")
+                log.debug(tag,"Pairing Wallet")
                 if(!wallet) throw Error("Must have wallet to pair!")
                 if(!this.blockchains) throw Error("Must have blockchains to pair!")
                 if(!this.username) throw Error("Must have username to pair!")
-                
+
                 //walletType
                 let isNative = await wallet?._isNative
                 let isKeepKey = await wallet?._isKeepKey
@@ -338,34 +402,35 @@ export class SDK {
                 if(isKeepKey) wallet.type = 'keepkey'
                 if(isMetaMask) wallet.type = 'metamask'
                 if(!isNative && !isKeepKey && !isMetaMask) {
-                    log.info(tag,"wallet: ",wallet)
+                    log.debug(tag,"wallet: ",wallet)
                     throw Error("can not init: Unhandled Wallet type!")
                 }
+                await this.setContext(wallet)
                 this.isConnected = true
-                log.info(tag,"isNative: ",isNative)
-                log.info(tag,"isKeepKey: ",isKeepKey)
-                log.info(tag,"isMetaMask: ",isMetaMask)
+                log.debug(tag,"isNative: ",isNative)
+                log.debug(tag,"isKeepKey: ",isKeepKey)
+                log.debug(tag,"isMetaMask: ",isMetaMask)
                 
                 //TODO error if server is offline
-                log.info(tag,"wallet: ",wallet)
+                log.debug(tag,"wallet: ",wallet)
                 let pubkeys = await this.getPubkeys(wallet)
                 if(!pubkeys) throw Error("Failed to get Pubkeys!")
                 // pubkeys = pubkeys.pubkeys
-                log.info(tag,"pubkeys: ",pubkeys)
+                log.debug(tag,"pubkeys: ",pubkeys)
                 if(pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
-                log.info(tag,"this.pubkeys: ",this.pubkeys)
+                log.debug(tag,"this.pubkeys: ",this.pubkeys)
                 // //make sure pubkeys got keys for all enabled assets
                 // //unique
                 // pubkeys = [ ...new Set(pubkeys)]
-                // log.info(tag,"pubkeyChains: ",pubkeys)
-                // log.info(tag,"pubkeyChains: ",pubkeys.length)
-                // log.info(tag,"blockchains: ",this.blockchains.length)
-                // log.info(tag,"blockchains: ",this.blockchains)
+                // log.debug(tag,"pubkeyChains: ",pubkeys)
+                // log.debug(tag,"pubkeyChains: ",pubkeys.length)
+                // log.debug(tag,"blockchains: ",this.blockchains.length)
+                // log.debug(tag,"blockchains: ",this.blockchains)
                 // //get missing
                 // let missingBlockchains = pubkeys
                 //     .filter((x: any) => !this.blockchains.includes(x))
                 //     .concat(this.blockchains.filter((x: any) => !pubkeys.includes(x)));
-                // log.info(tag,"missingBlockchains: ",missingBlockchains)
+                // log.debug(tag,"missingBlockchains: ",missingBlockchains)
                 //
                 // if(missingBlockchains.length > 0) {
                 //     log.error(tag,"missingBlockchains: ",missingBlockchains)
@@ -391,11 +456,11 @@ export class SDK {
                     auth:'lol',
                     provider:'lol'
                 }
-                log.info(tag,"register payload: ",register)
+                log.debug(tag,"register payload: ",register)
                 let result = await this.pioneer.Register(register)
-                log.info(tag,"register result: ",result)
+                log.debug(tag,"register result: ",result)
                 if(result.data.balances)this.balances = result.data.balances
-                if(result.data.wallets)this.wallets = result.data.wallets
+                //if(result.data.wallets)this.wallets = result.data.wallets
                 if(result.data.isSynced)this.isSynced = result.data.isSynced
                 if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
                 //get user
@@ -423,6 +488,25 @@ export class SDK {
 
             }
         }
+        this.disconnectWallet = async function (context: string) {
+            let tag = TAG + " | disconnectWallet | ";
+            try {
+                // Find the wallet in the this.wallets array based on the context
+                const walletIndex = this.wallets.findIndex((wallet: any) => wallet.context === context);
+
+                // If the wallet with the given context is found, set its status to 'disconnected'
+                if (walletIndex !== -1) {
+                    this.wallets[walletIndex].status = 'disconnected';
+                } else {
+                    log.error(tag,'Wallet with the given context not found.');
+                }
+
+                // Return the updated wallets array (optional)
+                return this.wallets;
+            } catch (e) {
+                log.error(tag, "e: ", e);
+            }
+        }
         this.refresh = async function () {
             let tag = TAG + " | refresh | "
             try {
@@ -435,22 +519,23 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
-        this.setWalletContext = async function (context:string) {
-            let tag = TAG + " | setWalletContext | "
-            try {
-                if(context && this.context && this.context !== context){
-                    let result = await this.pioneer.SetContext({context})
-                    log.debug(tag,"result: ",result)
-                    //if success
-                    this.context = context
-                    return result.data
-                }else{
-                    return {success:false,error:"already context="+context}
-                }
-            } catch (e) {
-                log.error(tag, "e: ", e)
-            }
-        }
+        // this.setWalletContext = async function (context:string) {
+        //     let tag = TAG + " | setWalletContext | "
+        //     try {
+        //         if(context && this.context && this.context !== context){
+        //             let result = await this.pioneer.SetContext({context})
+        //             log.debug(tag,"result: ",result)
+        //             //if success
+        //             this.context = context
+        //             this.wallet 
+        //             return result.data
+        //         }else{
+        //             return {success:false,error:"already context="+context}
+        //         }
+        //     } catch (e) {
+        //         log.error(tag, "e: ", e)
+        //     }
+        // }
         this.setBlockchainContext = async function (blockchain:string) {
             let tag = TAG + " | setBlockchainContext | "
             try {
@@ -633,7 +718,7 @@ export class SDK {
 
                 if(userInfo.username)this.username = userInfo.username
                 if(userInfo.context)this.context = userInfo.context
-                if(userInfo.wallets)this.wallets = userInfo.wallets
+                //if(userInfo.wallets)this.wallets = userInfo.wallets
                 if(userInfo.balances)this.balances = userInfo.balances
                 // if(userInfo.pubkeys && this.pubkeys.length < userInfo.pubkeys.length)this.pubkeys = userInfo.pubkeys
                 if(userInfo.totalValueUsd)this.totalValueUsd = parseFloat(userInfo.totalValueUsd)
@@ -651,8 +736,8 @@ export class SDK {
             let tag = TAG + " | getPubkeys | "
             try {
                 let output:any = {}
-                log.info(tag,"checkpoint")
-                // log.info(tag,"wallet: ",wallet)
+                log.debug(tag,"checkpoint")
+                //log.debug(tag,"wallet: ",wallet)
                 if(!wallet) throw Error("can not get pubkeys! Wallet not sent!")
                 if(!this.blockchains) throw Error("blockchains not set!")
 
@@ -662,14 +747,14 @@ export class SDK {
                 // this.paths = [...this.paths, ...getPaths(this.blockchains)];
                 
                 let paths = this.paths
-                log.info(tag,"paths: ",paths)
+                log.debug(tag,"paths: ",paths)
 
                 if(!paths || paths.length === 0) throw Error("Failed to get paths!")
                 //verify paths
                 for(let i = 0; i < this.blockchains.length; i++){
                     let blockchain = this.blockchains[i]
                     let symbol = getNativeAssetForBlockchain(blockchain)
-                    log.info(tag,"symbol: ",symbol)
+                    log.debug(tag,"symbol: ",symbol)
                     //find in pubkeys
                     let isFound = paths.find((path: { blockchain: string; }) => {
                         return path.blockchain === blockchain
@@ -684,7 +769,7 @@ export class SDK {
                 let ethMaster = null
                 //if native
                 if(wallet?._isNative){
-                    log.info(tag,"Is Native, format pubkeys")
+                    log.debug(tag,"Is Native, format pubkeys")
                     let pathsKeepkey:any = []
                     for(let i = 0; i < paths.length; i++){
                         let path = paths[i]
@@ -701,13 +786,13 @@ export class SDK {
                         pathsKeepkey.push(pathForKeepkey)
                     }
 
-                    log.info("***** paths IN: ",pathsKeepkey.length)
-                    log.info("***** paths IN: ",pathsKeepkey)
+                    log.debug("***** paths IN: ",pathsKeepkey.length)
+                    log.debug("***** paths IN: ",pathsKeepkey)
 
                     //verify paths for each enabled blockchain
                     for(let i = 0; i < this.blockchains.length; i++){
                         let blockchain = this.blockchains[i]
-                        log.info(tag,"blockchain: ",blockchain)
+                        log.debug(tag,"blockchain: ",blockchain)
 
                         //find blockchain in path
                         let isFound = paths.find((path: { blockchain: string; }) => {
@@ -717,29 +802,29 @@ export class SDK {
                             throw Error("Failed to find path for blockchain: "+blockchain)
                         }
                     }
-                    log.info("***** paths IN: ",pathsKeepkey)
+                    log.debug("***** paths IN: ",pathsKeepkey)
                     let result = await wallet.getPublicKeys(pathsKeepkey)
                     // if(walletType === 'keepkey'){
                     //     result = await wallet.getPublicKeys(pathsKeepkey)
                     // } else if(walletType === 'native'){
-                    //     log.info(tag,"pathsKeepkey: ",pathsKeepkey )
+                    //     log.debug(tag,"pathsKeepkey: ",pathsKeepkey )
                     //     result = await wallet.getPublicKeys(pathsKeepkey)
                     // } else {
                     //     throw Error("unhandled wallet")
                     // }
-                    log.info(tag,"result wallet.getPublicKeys: ",result)
+                    log.debug(tag,"result wallet.getPublicKeys: ",result)
                     if(!result) throw Error("failed to get pubkeys!")
 
 
 
                     for(let i = 0; i < result.length; i++){
                         let pubkey:any = paths[i]
-                        log.info(tag,"pubkey: ",pubkey)
+                        log.debug(tag,"pubkey: ",pubkey)
                         let normalized:any = {}
                         normalized.path = addressNListToBIP32(paths[i].addressNList)
                         normalized.pathMaster = addressNListToBIP32(paths[i].addressNListMaster)
 
-                        log.info(tag,"pubkey: ",pubkey)
+                        log.debug(tag,"pubkey: ",pubkey)
                         normalized.source = 'keepkey'
                         if(pubkey.type === 'xpub'){
                             normalized.type = 'xpub'
@@ -750,11 +835,11 @@ export class SDK {
                         if(pubkey.type === 'zpub'){
                             normalized.type = 'zpub'
                             normalized.zpub = true
-                            log.info(tag,"xpub: ",result[i].xpub)
+                            log.debug(tag,"xpub: ",result[i].xpub)
                             if(!result[i].xpub) throw Error("Missing xpub")
                             //convert to zpub
                             // let zpub = await xpubConvert(result[i].xpub,'zpub')
-                            log.info(tag,"zpub: ",result[i].xpub)
+                            log.debug(tag,"zpub: ",result[i].xpub)
                             normalized.pubkey = result[i].xpub
                             pubkey.pubkey = result[i].xpub
                         }
@@ -777,7 +862,7 @@ export class SDK {
 
                         //get master address
                         let address
-                        log.info(tag,"symbol: ",pubkey.symbol)
+                        log.debug(tag,"symbol: ",pubkey.symbol)
                         switch(pubkey.symbol) {
                             case 'BTC':
                             case 'BCH':
@@ -791,7 +876,7 @@ export class SDK {
                                     showDisplay: false
                                 })
 
-                                log.info(tag,"address: ",address)
+                                log.debug(tag,"address: ",address)
                                 break;
                             case 'ETH':
                             case 'AVAX':
@@ -841,7 +926,7 @@ export class SDK {
                                 throw Error("coin not yet implemented ! coin: "+pubkey.symbol)
                             // code block
                         }
-                        log.info(tag,"address: ",address)
+                        log.debug(tag,"address: ",address)
                         if(!address){
                             log.error("Failed to get address for pubkey: ",pubkey)
                             throw Error("address master required for valid pubkey")
@@ -858,7 +943,7 @@ export class SDK {
                         pubkeys.push(normalized)
                         this.pubkeys.push(normalized)
                     }
-                    log.info(tag,"pubkeys:",pubkeys)
+                    log.debug(tag,"pubkeys:",pubkeys)
                     output.pubkeys = pubkeys
                     // this.pubkeys = pubkeys
                     if(pubkeys.length !== result.length) {
@@ -866,8 +951,8 @@ export class SDK {
                         log.error(tag, {result})
                         throw Error("Failed to Normalize pubkeys!")
                     }
-                    log.info(tag,"pubkeys: (normalized) ",pubkeys.length)
-                    log.info(tag,"pubkeys: (normalized) ",pubkeys)
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys.length)
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys)
 
 
                     for(let i = 0; i < pubkeys.length; i++){
@@ -885,7 +970,7 @@ export class SDK {
                     for(let i = 0; i < this.blockchains.length; i++){
                         let blockchain = this.blockchains[i]
                         let symbol = getNativeAssetForBlockchain(blockchain)
-                        log.info(tag,"symbol: ",symbol)
+                        log.debug(tag,"symbol: ",symbol)
                         //find in pubkeys
                         let isFound = pubkeys.find((path: { blockchain: string; }) => {
                             return path.blockchain === blockchain
@@ -899,7 +984,7 @@ export class SDK {
 
                 //if keepkey
                 if(wallet?._isKeepKey){
-                    log.info(tag,"Is keepkey, format pubkeys")
+                    log.debug(tag,"Is keepkey, format pubkeys")
                     let pathsKeepkey:any = []
                     for(let i = 0; i < paths.length; i++){
                         let path = paths[i]
@@ -916,13 +1001,13 @@ export class SDK {
                         pathsKeepkey.push(pathForKeepkey)
                     }
 
-                    log.info("***** paths IN: ",pathsKeepkey.length)
-                    log.info("***** paths IN: ",pathsKeepkey)
+                    log.debug("***** paths IN: ",pathsKeepkey.length)
+                    log.debug("***** paths IN: ",pathsKeepkey)
 
                     //verify paths for each enabled blockchain
                     for(let i = 0; i < this.blockchains.length; i++){
                         let blockchain = this.blockchains[i]
-                        log.info(tag,"blockchain: ",blockchain)
+                        log.debug(tag,"blockchain: ",blockchain)
 
                         //find blockchain in path
                         let isFound = paths.find((path: { blockchain: string; }) => {
@@ -934,28 +1019,28 @@ export class SDK {
                     }
 
                     let result = await wallet.getPublicKeys(pathsKeepkey)
-                    log.info(tag,"result wallet.getPublicKeys: ",result)
+                    log.debug(tag,"result wallet.getPublicKeys: ",result)
                     // if(walletType === 'keepkey'){
                     //     result = await wallet.getPublicKeys(pathsKeepkey)
                     // } else if(walletType === 'native'){
-                    //     log.info(tag,"pathsKeepkey: ",pathsKeepkey )
+                    //     log.debug(tag,"pathsKeepkey: ",pathsKeepkey )
                     //     result = await wallet.getPublicKeys(pathsKeepkey)
                     // } else {
                     //     throw Error("unhandled wallet")
                     // }
-                    log.info(tag,"result wallet.getPublicKeys: ",result)
+                    log.debug(tag,"result wallet.getPublicKeys: ",result)
                     if(!result) throw Error("failed to get pubkeys!")
 
 
                     
                     for(let i = 0; i < result.length; i++){
                         let pubkey:any = paths[i]
-                        log.info(tag,"pubkey: ",pubkey)
+                        log.debug(tag,"pubkey: ",pubkey)
                         let normalized:any = {}
                         normalized.path = addressNListToBIP32(paths[i].addressNList)
                         normalized.pathMaster = addressNListToBIP32(paths[i].addressNListMaster)
 
-                        log.info(tag,"pubkey: ",pubkey)
+                        log.debug(tag,"pubkey: ",pubkey)
                         normalized.source = 'keepkey'
                         if(pubkey.type === 'xpub'){
                             normalized.type = 'xpub'
@@ -966,12 +1051,12 @@ export class SDK {
                         if(pubkey.type === 'zpub'){
                             normalized.type = 'zpub'
                             normalized.zpub = true
-                            log.info(tag,"xpub: ",result[i].xpub)
+                            log.debug(tag,"xpub: ",result[i].xpub)
                             if(!result[i].xpub) throw Error("Missing xpub")
 
                             //convert to zpub
                             // let zpub = await xpubConvert(result[i].xpub,'zpub')
-                            // log.info(tag,"zpub: ",result[i].xpub)
+                            // log.debug(tag,"zpub: ",result[i].xpub)
                             normalized.pubkey = result[i].xpub
                             pubkey.pubkey = result[i].xpub
                         }
@@ -988,7 +1073,7 @@ export class SDK {
 
                         //get master address
                         let address
-                        log.info(tag,"symbol: ",pubkey.symbol)
+                        log.debug(tag,"symbol: ",pubkey.symbol)
                         switch(pubkey.symbol) {
                             case 'BTC':
                             case 'BCH':
@@ -1001,7 +1086,7 @@ export class SDK {
                                     scriptType: paths[i].script_type,
                                     showDisplay: false
                                 })
-                                log.info(tag,"address: ",address)
+                                log.debug(tag,"address: ",address)
                                 break;
                             case 'ETH':
                             case 'AVAX':
@@ -1050,7 +1135,7 @@ export class SDK {
                                 throw Error("coin not yet implemented ! coin: "+pubkey.symbol)
                             // code block
                         }
-                        log.info(tag,"address: ",address)
+                        log.debug(tag,"address: ",address)
                         if(!address){
                             log.error("Failed to get address for pubkey: ",pubkey)
                             throw Error("address master required for valid pubkey")
@@ -1067,7 +1152,7 @@ export class SDK {
                         pubkeys.push(normalized)
                         this.pubkeys.push(normalized)
                     }
-                    log.info(tag,"pubkeys:",pubkeys)
+                    log.debug(tag,"pubkeys:",pubkeys)
                     output.pubkeys = pubkeys
                     // this.pubkeys = pubkeys
                     if(pubkeys.length !== result.length) {
@@ -1075,8 +1160,8 @@ export class SDK {
                         log.error(tag, {result})
                         throw Error("Failed to Normalize pubkeys!")
                     }
-                    log.info(tag,"pubkeys: (normalized) ",pubkeys.length)
-                    log.info(tag,"pubkeys: (normalized) ",pubkeys)
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys.length)
+                    log.debug(tag,"pubkeys: (normalized) ",pubkeys)
 
 
                     for(let i = 0; i < pubkeys.length; i++){
@@ -1094,7 +1179,7 @@ export class SDK {
                     for(let i = 0; i < this.blockchains.length; i++){
                         let blockchain = this.blockchains[i]
                         let symbol = getNativeAssetForBlockchain(blockchain)
-                        log.info(tag,"symbol: ",symbol)
+                        log.debug(tag,"symbol: ",symbol)
                         //find in pubkeys
                         let isFound = pubkeys.find((path: { blockchain: string; }) => {
                             return path.blockchain === blockchain
@@ -1108,7 +1193,8 @@ export class SDK {
 
                 //if metamask
                 if(wallet?._isMetaMask) {
-                    log.info(tag," metamask wallet detected!")
+                    log.debug(tag," metamask wallet detected!")
+                    ethMaster = 'metamask' //metamask won't tell us whats really on path 60'/0'/0'/0/0
                     let pubkeyEth = {
                         pubkey: wallet.ethAddress,
                         blockchain: 'ethereum',
@@ -1126,10 +1212,31 @@ export class SDK {
                     this.pubkeys.push(pubkeyEth)
                     output.pubkeys = pubkeys
                     keyedWallet['ETH'] = pubkeyEth
+
+                    //if extra keys
+                    if(wallet?.accounts){
+                        for(let i = 0; i < wallet.accounts.length; i++){
+                            let account = wallet.accounts[i]
+                            let pubkeyEth = {
+                                pubkey: account,
+                                blockchain: 'ethereum',
+                                symbol: 'ETH',
+                                asset: 'ethereum',
+                                path: "m/44'/60'/0'",
+                                pathMaster: "m/44'/60'/0'/0/0",
+                                script_type: 'ethereum',
+                                network: 'ethereum',
+                                master: account,
+                                type: 'address',
+                                address: account
+                            }
+                            pubkeys.push(pubkeyEth)
+                        }
+                    }
                 }
                 // let features = wallet.features;
-                // log.info(tag,"vender: ",features)
-                // log.info(tag,"vender: ",features.deviceId)
+                // log.debug(tag,"vender: ",features)
+                // log.debug(tag,"vender: ",features.deviceId)
 
                 //keep it short but unique. label + last 4 of id
                 let masterEth = ethMaster || wallet.ethAddress || await this.getAddress('ETH')
@@ -1144,7 +1251,7 @@ export class SDK {
                     "WALLET_PUBLIC":keyedWallet,
                     "PATHS":paths
                 }
-                log.info(tag,"writePathPub: ",watchWallet)
+                log.debug(tag,"writePathPub: ",watchWallet)
                 output.publicAddress = masterEth
                 output.context = context
                 output.wallet = watchWallet
@@ -1221,7 +1328,7 @@ export class SDK {
                     if(sync && this.pioneer){
                         let syncResult = await this.pioneer.SyncPubkeys({network:selected.network})
                         syncResult = syncResult.data
-                        log.info(tag,"syncResult:",syncResult)
+                        log.debug(tag,"syncResult:",syncResult)
                         selected = syncResult[0]
                     }
                 } else if(pubkeys.length > 1) {
@@ -1231,7 +1338,7 @@ export class SDK {
                     if(sync && this.pioneer){
                         let syncResult = await this.pioneer.SyncPubkeys({network:selected.network})
                         syncResult = syncResult.data
-                        log.info(tag,"syncResult:",syncResult)
+                        log.debug(tag,"syncResult:",syncResult)
                         selected = syncResult[0]
                     }
                     //TODO sync all, and use largest balance?
@@ -1297,7 +1404,7 @@ export class SDK {
                 switch(tx.type) {
                     case 'sendToAddress':
                         //TODO validate payload
-                        log.info("SendToAddress: ",tx)
+                        log.debug("SendToAddress: ",tx)
                         unsignedTx = await this.sendToAddress(tx.payload)
                         log.debug(tag,"unsignedTx: ",unsignedTx)
                         if(!unsignedTx) throw Error("Failed to build sendToAddress!")
@@ -1312,7 +1419,7 @@ export class SDK {
                             tx:tx.payload,
                             unsignedTx
                         }
-                        log.info(tag,"Save sendToAddress invocation: ",invocation)
+                        log.debug(tag,"Save sendToAddress invocation: ",invocation)
                         log.debug(tag,"Save sendToAddress invocation: ",JSON.stringify(invocation))
                         // result = await this.invoke.invoke(invocation)
                         log.debug(tag,"result: ",result)
@@ -1379,10 +1486,10 @@ export class SDK {
             let tag = TAG + " | sign | "
             try {
                 if(!wallet) throw Error("Must pass wallet to sign!")
-                log.info(tag,"invocation: ",invocation)
-                // log.info(tag,"wallet: ",wallet)
+                log.debug(tag,"invocation: ",invocation)
+                // log.debug(tag,"wallet: ",wallet)
 
-                log.info(tag,"*** invocation: ",JSON.stringify(invocation))
+                log.debug(tag,"*** invocation: ",JSON.stringify(invocation))
 
                 let blockchain = invocation.blockchain
 
@@ -1404,21 +1511,23 @@ export class SDK {
                 }
                 let ethAddress = await wallet.ethGetAddress(addressInfo)
                 let walletContextGiven = ethAddress+".wallet"
-                log.info(tag,"walletContextGiven: ",walletContextGiven)
-                log.info(tag,"invocation.context: ",invocation.context)
+                log.debug(tag,"walletContextGiven: ",walletContextGiven)
+                log.debug(tag,"invocation.context: ",invocation.context)
                 if(walletContextGiven !== invocation.context) throw Error("Invalid context! wallet context does not match invocation context!")
 
                 log.debug(tag,"*** unsignedTx HDwalletpayload: ",JSON.stringify(unsignedTx))
                 switch (blockchain) {
                     case 'bitcoin':
                     case 'bitcoincash':
+                    case 'dash':
+                    case 'digibytes':
                     case 'litecoin':
                     case 'dogecoin':
                         txSigned = await wallet.btcSignTx(unsignedTx)
                         break;
                     case 'avalanche':
                     case 'ethereum':
-                        log.info("unsignedTx: ",unsignedTx)
+                        log.debug("unsignedTx: ",unsignedTx)
                         txSigned = await wallet.ethSignTx(unsignedTx)
                         // txid = keccak256(txSigned.serialized).toString('hex')
                         // log.debug(tag,"txid: ",txid)
@@ -1854,20 +1963,20 @@ export class SDK {
                 //for all pubkeys
 
                 //get balance
-                log.info(tag,"*** this.balances: ",this.balances)
-                log.info(tag,"*** this.balances: ",this.balances.filter((e:any) => e.asset === "BCH")[0])
-                log.info(tag,"*** tx.asset: ",tx.asset)
+                log.debug(tag,"*** this.balances: ",this.balances)
+                log.debug(tag,"*** this.balances: ",this.balances.filter((e:any) => e.asset === "BCH")[0])
+                log.debug(tag,"*** tx.asset: ",tx.asset)
                 let balances = this.balances.filter((e:any) => e.asset === tx.asset)[0]
-                log.info(tag,"*** balances: ",balances)
+                log.debug(tag,"*** balances: ",balances)
                 if(!balances) throw Error("No balance found for asset: "+tx.asset)
 
                 //balances
                 if(balances.length === 0){
                     throw Error("No balance found for asset! asset"+tx.asset)
                 } else if(balances.length === 1){
-                    log.info(tag,"assume from is only balance")
+                    log.debug(tag,"assume from is only balance")
                 }else if(balances.length > 1){
-                    log.info(tag,"select larges balance")
+                    log.debug(tag,"select larges balance")
                     //select largest balance
                     //let largest =
                 }
@@ -1890,10 +1999,10 @@ export class SDK {
                 if(!transferTx.pubkey) throw Error("Failed to find pubkey!")
                 if(!tx.address) tx.address = tx.pubkey.address
                 //unsignedTx
-                log.info(tag,"transferTx: ",transferTx)
+                log.debug(tag,"transferTx: ",transferTx)
                 let unsignedTx = await this.txBuilder.buildTx(transferTx)
-                log.info(tag,"unsignedTx: ",unsignedTx)
-                log.info(tag,"pre lookup unsignedTx: ",JSON.stringify(unsignedTx))
+                log.debug(tag,"unsignedTx: ",unsignedTx)
+                log.debug(tag,"pre lookup unsignedTx: ",JSON.stringify(unsignedTx))
 
                 //smart insight?
 

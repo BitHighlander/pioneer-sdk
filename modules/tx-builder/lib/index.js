@@ -387,6 +387,8 @@ class TxBuilder {
                     case 'bitcoin':
                     case 'bitcoincash':
                     case 'litecoin':
+                    case 'dash':
+                    case 'digibytes':
                     case 'dogecoin':
                         //
                         log.info(tag, "pubkey: ", tx.pubkey);
@@ -402,6 +404,11 @@ class TxBuilder {
                             feeRateInfo = feeRateInfo.fast.satsPerKiloByte;
                             feeRateInfo = feeRateInfo / 1000;
                         }
+                        if (feeRateInfo.fast) {
+                            feeRateInfo = feeRateInfo.fast;
+                        }
+                        //@TODO fee selection fast/slow bla bla
+                        //@TODO custom fee settings
                         if (!feeRateInfo)
                             throw Error("Failed to get feeRateInfo!");
                         log.debug(tag, "feeRateInfo: ", feeRateInfo);
@@ -686,8 +693,10 @@ class TxBuilder {
                             throw Error("unable to get nonce!");
                         log.info(tag, "nonce: ", nonce);
                         let value;
+                        let to;
                         //if asset !== ETH then token send
                         if (tx.asset !== 'ETH') {
+                            to = tx.contract;
                             log.info(tag, " Building ERC20 Tx");
                             if (!tx.contract)
                                 throw Error("Missing contract address!");
@@ -701,11 +710,11 @@ class TxBuilder {
                                 amount = tx.amount;
                             }
                             //lookup precision for contract
-                            //to to Address as contract
-                            tx.toAddress = tx.contract;
                             //get token info
                             let tokenData = await this.pioneer.GetTransferData({ toAddress: tx.toAddress, amount, contract: tx.contract });
                             tokenData = tokenData.data;
+                            //to to Address as contract
+                            to = tx.contract;
                             if (!tokenData)
                                 throw Error("unable to get tokenData!");
                             value = 0;
@@ -713,6 +722,7 @@ class TxBuilder {
                             tx.data = tokenData;
                         }
                         else {
+                            to = tx.toAddress;
                             //if amount = max
                             if (tx.amount === 'MAX') {
                                 let ethBalance = await this.pioneer.GetPubkeyBalance({ asset: 'ETH', pubkey: from });
@@ -735,7 +745,6 @@ class TxBuilder {
                                 log.debug(tag, "value: ", value);
                             }
                         }
-                        let to = tx.toAddress;
                         if (!to)
                             throw Error("unable to to address!");
                         let chainId;

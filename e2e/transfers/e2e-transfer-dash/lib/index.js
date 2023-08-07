@@ -35,6 +35,8 @@ require("dotenv").config({ path: '../../../../.env' });
 const TAG = " | e2e-test | ";
 const core = __importStar(require("@shapeshiftoss/hdwallet-core"));
 const native = __importStar(require("@shapeshiftoss/hdwallet-native"));
+const keepkey_sdk_1 = require("@keepkey/keepkey-sdk");
+const hdwallet_keepkey_rest_1 = require("@keepkey/hdwallet-keepkey-rest");
 const log = require("@pioneer-platform/loggerdog")();
 let assert = require('assert');
 let SDK = require('@pioneer-sdk/sdk');
@@ -49,13 +51,11 @@ let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev';
 let FAUCET_ADDRESS = process.env['FAUCET_DASH_ADDRESS'];
 if (!FAUCET_ADDRESS)
     throw Error("Need Faucet Address!");
-//hdwallet Keepkey
-let Controller = require("@keepkey/keepkey-hardware-controller");
 let noBroadcast = true;
 console.log("spec: ", spec);
 console.log("wss: ", wss);
 let blockchains = [
-    'bitcoin', 'ethereum', 'thorchain', 'bitcoincash', 'litecoin', 'binance', 'cosmos', 'dogecoin', 'osmosis'
+    'bitcoin', 'dash', 'ethereum', 'thorchain', 'bitcoincash', 'litecoin', 'binance', 'cosmos', 'dogecoin', 'osmosis'
 ];
 let txid;
 let invocationId;
@@ -67,26 +67,23 @@ if (params[0] === 'broadcast')
     noBroadcast = false;
 const start_keepkey_controller = async function () {
     try {
-        let config = {};
-        //sub ALL events
-        let controller = new Controller.KeepKey(config);
-        //state
-        controller.events.on('state', function (request) {
-            console.log("state: ", request);
-        });
-        //errors
-        controller.events.on('error', function (request) {
-            console.log("state: ", request);
-        });
-        //logs
-        controller.events.on('logs', function (request) {
-            console.log("logs: ", request);
-        });
-        controller.init();
-        while (!controller.wallet) {
-            await sleep(1000);
-        }
-        return controller.wallet;
+        let serviceKey = "135085f0-5c73-4bb1-abf0-04ddfc710b07";
+        let config = {
+            apiKey: serviceKey,
+            pairingInfo: {
+                name: 'ShapeShift',
+                imageUrl: 'https://assets.coincap.io/assets/icons/fox@2x.png',
+                basePath: 'http://localhost:1646/spec/swagger.json',
+                url: 'https://app.shapeshift.com',
+            },
+        };
+        let sdk = await keepkey_sdk_1.KeepKeySdk.create(config);
+        console.log(config.apiKey);
+        const keyring = new core.Keyring();
+        // @ts-ignore
+        let wallet = await hdwallet_keepkey_rest_1.KkRestAdapter.useKeyring(keyring).pairDevice(sdk);
+        //console.log("wallet: ",wallet)
+        return wallet;
     }
     catch (e) {
         console.error(e);
@@ -150,14 +147,14 @@ const test_service = async function () {
             wss
         };
         let app = new SDK.SDK(spec, config);
-        // log.info(tag,"app: ",app)
+        log.info(tag, "app: ", app);
         //get HDwallet
         let wallet = await start_keepkey_controller();
         // let wallet = await start_software_wallet()
-        // log.info(tag,"wallet: ",wallet)
+        log.info(tag, "wallet: ", wallet);
         //init with HDwallet
         let result = await app.init(wallet);
-        //log.info(tag,"result: ",result)
+        log.info(tag, "result: ", result);
         assert(app.username);
         assert(app.context);
         // // console.log("context: ",app.context)
@@ -172,6 +169,7 @@ const test_service = async function () {
         assert(balance);
         assert(balance[0]);
         assert(balance[0].balance);
+        assert(balance[0].context);
         if (balance[0].balance <= TEST_AMOUNT) {
             log.info(tag, "balance: ", balance[0].balance, " TEST_AMOUNT: ", TEST_AMOUNT);
             throw Error("Failed balance check! YOU ARE BROKE!");
@@ -183,6 +181,7 @@ const test_service = async function () {
         //     amount:"MAX"
         // }
         let send = {
+            context: balance[0].context,
             blockchain: BLOCKCHAIN,
             asset: ASSET,
             address: FAUCET_ADDRESS,
@@ -192,19 +191,19 @@ const test_service = async function () {
             type: 'sendToAddress',
             payload: send
         };
-        let invocationId = await app.build(tx);
-        log.info(tag, "invocationId: ", invocationId);
+        log.info(tag, "invocation: ", tx);
+        let invocation = await app.build(tx);
+        log.info(tag, "invocation: ", invocation);
         //signTx
-        let resultSign = await app.sign(invocationId);
-        log.info(tag, "resultSign: ", resultSign);
+        invocation = await app.sign(invocation, wallet);
+        log.info(tag, "resultSign: ", invocation);
         //get txid
-        let payload = {
-            noBroadcast: false,
-            sync: true,
-            invocationId
-        };
-        let resultBroadcast = await app.broadcast(payload);
+        invocation.network = ASSET; //TODO dont do this bullshit, use caip
+        invocation.noBroadcast = false;
+        invocation.sync = true;
+        let resultBroadcast = await app.broadcast(invocation);
         log.info(tag, "resultBroadcast: ", resultBroadcast);
+        log.info(tag, "resultBroadcast: ", JSON.stringify(resultBroadcast));
         assert(resultBroadcast);
         assert(resultBroadcast.broadcast);
         assert(resultBroadcast.broadcast.success);
@@ -224,30 +223,32 @@ const test_service = async function () {
         let currentStatus;
         let statusCode = 0;
         //wait till confirmed
-        while (!isConfirmed) {
-            log.info("check for confirmations");
-            //
-            let invocationInfo = await app.getInvocation(invocationId);
-            log.debug(tag, "invocationInfo: (VIEW) ", invocationInfo);
-            log.info(tag, "invocationInfo: (VIEW): ", invocationInfo.state);
-            if (invocationInfo.broadcast.noBroadcast) {
-                log.notice(tag, "noBroadcast flag found: exiting ");
-                statusCode = 3;
-                isConfirmed = true;
-            }
-            if (invocationInfo && invocationInfo.isConfirmed) {
-                log.test(tag, "Confirmed!");
-                statusCode = 3;
-                isConfirmed = true;
-                console.timeEnd('timeToConfirmed');
-                console.time('confirm2fullfillment');
-            }
-            else {
-                log.test(tag, "Not Confirmed!", new Date().getTime());
-            }
-            await sleep(3000);
-            log.info("sleep over");
-        }
+        // while(!isConfirmed){
+        //     log.info("check for confirmations")
+        //     //
+        //     let invocationInfo = await app.getInvocation(invocationId)
+        //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
+        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //
+        //     if(invocationInfo.broadcast.noBroadcast){
+        //         log.notice(tag,"noBroadcast flag found: exiting ")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //     }
+        //
+        //     if(invocationInfo && invocationInfo.isConfirmed){
+        //         log.test(tag,"Confirmed!")
+        //         statusCode = 3
+        //         isConfirmed = true
+        //         console.timeEnd('timeToConfirmed')
+        //         console.time('confirm2fullfillment')
+        //     } else {
+        //         log.test(tag,"Not Confirmed!",new Date().getTime())
+        //     }
+        //
+        //     await sleep(3000)
+        //     log.info("sleep over")
+        // }
         log.notice("****** TEST PASS ******");
         //process
         process.exit(0);

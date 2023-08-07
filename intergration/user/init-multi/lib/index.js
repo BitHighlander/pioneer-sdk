@@ -66,10 +66,17 @@ const start_metamask_wallet = async () => {
     const TAG = " | start_metamask_wallet | ";
     let wallet = {
         _isMetaMask: true,
-        ethAddress: "0x33b35c665496ba8e71b22373843376740401f106"
+        ethAddress: "0x33b35c665496ba8e71b22373843376740401f106",
+        accounts: ['0x33b35c665496ba8e71b22373843376740401f106', '0xbda1b484152f32e215aa5457366ec537d0e35e4b', '0x651982e85d5e43db682cd6153488083e1b810798', '0xfeb8bf56e554fc47639e5ed9e1dae21dff69d6a9'],
+        ethGetAddress: function () {
+            return this.ethAddress;
+        }
     };
     return wallet;
 };
+let metamask_accounts = [
+    '0x33b35c665496ba8e71b22373843376740401f106', '0x651982e85D5E43db682cD6153488083e1b810798', '0xBDa1b484152F32e215aA5457366ec537d0E35e4B'
+];
 const start_software_wallet = async function () {
     try {
         let mnemonic = process.env['WALLET_MAIN'];
@@ -172,7 +179,7 @@ const test_service = async function () {
         assert(pubkeysMetaMask.context);
         assert(pubkeysMetaMask.wallet);
         assert(pubkeysMetaMask.pubkeys.length, 1);
-        log.info(tag, "pubkeysMetaMask: ", pubkeysMetaMask);
+        log.info(tag, "pubkeysMetaMask: ", pubkeysMetaMask.pubkeys.length);
         //validate pubkeys
         let pubkeysNative = await app.getPubkeys(walletSoftware);
         assert(pubkeysNative);
@@ -180,14 +187,14 @@ const test_service = async function () {
         assert(pubkeysNative.context);
         assert(pubkeysNative.wallet);
         assert(pubkeysNative.pubkeys.length, 9);
-        log.info(tag, "pubkeysNative: ", pubkeysNative);
+        log.info(tag, "pubkeysNative: ", pubkeysNative.pubkeys.length);
         let pubkeysKeepKey = await app.getPubkeys(walletKeepKey);
         assert(pubkeysKeepKey);
         assert(pubkeysKeepKey.publicAddress);
         assert(pubkeysKeepKey.context);
         assert(pubkeysKeepKey.wallet);
         assert(pubkeysKeepKey.pubkeys.length, 9);
-        log.info(tag, "pubkeysKeepKey: ", pubkeysKeepKey);
+        log.info(tag, "pubkeysKeepKey: ", pubkeysKeepKey.pubkeys.length);
         //init with metamask
         // let result = await app.init(walletMetaMask)
         // log.info(tag,"result: ",result)
@@ -200,6 +207,9 @@ const test_service = async function () {
         let result = await app.init(walletKeepKey);
         // log.info(tag,"result: ",result)
         assert(result);
+        assert(app.wallet);
+        assert(app.context);
+        log.info(tag, "app.context: ", app.context);
         // assert(result.User)
         //get balances for keepkey
         //balances
@@ -246,6 +256,16 @@ const test_service = async function () {
         assert(successMetaMask);
         app.refresh();
         log.info(tag, "checkpoint post refresh: ");
+        //context should match first account
+        let context = await app.context;
+        log.info(tag, "context: ", context);
+        assert(context);
+        assert(context, "metamask.wallet.json");
+        //all the other accounts should be in wallets just offline
+        assert(app.wallet);
+        let allWallets = await app.wallets;
+        log.info(tag, "allWallets: ", allWallets);
+        // assert(allWallets.length, metamask_accounts.length + 1) //plus keepkey
         let user1 = await result.User();
         user1 = user1.data;
         log.info(tag, "user1 isFox: ", user1.isFox);
@@ -275,7 +295,7 @@ const test_service = async function () {
         log.info(tag, "metamaskWalletDescription: ", metamaskWalletDescription);
         let keepkeyWalletDescription = user2.walletDescriptions.filter((e) => e.type === "keepkey");
         assert(keepkeyWalletDescription.length, 1);
-        log.info(tag, "metamaskWalletDescription: ", metamaskWalletDescription);
+        log.info(tag, "keepkeyWalletDescription: ", keepkeyWalletDescription);
         let nativeWalletDescription = user2.walletDescriptions.filter((e) => e.type === "native");
         assert(nativeWalletDescription.length, 1);
         log.info(tag, "nativeWalletDescription: ", nativeWalletDescription);
@@ -335,15 +355,49 @@ const test_service = async function () {
         assert(balance);
         assert(balance[0]);
         assert(balance[0].balance);
+        //
+        assert(app.wallet);
         //TODO context changing
-        // //should have a default context always
-        // let walletContext = await app.context
-        // assert(walletContext)
-        // log.info("walletContext: ",walletContext)
-        //
-        // //set to current wallet
-        // // let changeContext = await app.setWalletContext(walletContext)
-        //
+        //should have a default context always
+        let walletContext = await app.context;
+        assert(walletContext);
+        log.info("walletContext: ", walletContext);
+        //get wallets
+        let wallets = await app.wallets;
+        log.info("wallets: ", wallets);
+        assert(wallets.length, 3);
+        //set to current wallet
+        let changeContext = await app.setContext(wallets[0].wallet);
+        // log.info("changeContext: ",changeContext)
+        assert(changeContext);
+        assert(app.context, wallets[0].context);
+        assert(app.wallet);
+        log.info("app.wallet: ", app.wallet);
+        //get address on wallet on context
+        const addressInfo = {
+            addressNList: [2147483692, 2147483708, 2147483648, 0, 0],
+            coin: "Ethereum",
+            scriptType: "ethereum",
+            showDisplay: false,
+        };
+        log.info(tag, "app.wallet: ", app.wallet);
+        const address = await app.wallet.ethGetAddress(addressInfo);
+        console.log("address0: ", address);
+        let changeContext1 = await app.setContext(wallets[1].wallet);
+        // log.info("changeContext: ",changeContext)
+        assert(changeContext);
+        assert(app.context, wallets[1]);
+        assert(app.wallet);
+        const address1 = await app.wallet.ethGetAddress(addressInfo);
+        console.log("address1: ", address1);
+        let changeContext2 = await app.setContext(wallets[2].wallet);
+        // log.info("changeContext: ",changeContext)
+        assert(changeContext);
+        assert(app.context, wallets[2]);
+        assert(app.wallet);
+        const address2 = await app.wallet.ethGetAddress(addressInfo);
+        console.log("address2: ", address2);
+        //verify wallet has changed
         // let blockchainContext = await app.blockchainContext
         // assert(blockchainContext)
         // log.info("blockchainContext: ",blockchainContext)
@@ -370,12 +424,9 @@ const test_service = async function () {
         // let assetContextPost = await app.assetContext
         // assert(assetContextPost, ASSET)
         // log.info("assetContextPost: ",assetContextPost)
-        //
-        // //attempt to change wallet context to unpaired wallet
-        //
-        // //attempt to change blockchain context to unsupported by current wallet
-        //
-        // //attempt to change asset context to a unsupported asset of current blockchain
+        //attempt to change wallet context to unpaired wallet
+        //attempt to change blockchain context to unsupported by current wallet
+        //attempt to change asset context to a unsupported asset of current blockchain
         //listen to events
         log.notice("****** TEST PASS ******");
         //process

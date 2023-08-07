@@ -1796,6 +1796,26 @@
     eth_mnemonic_signer "^1.0.9"
     swagger-client "^3.19.8"
 
+"@pioneer-platform/pioneer-coins@8.1.72":
+  version "8.1.72"
+  resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-coins/-/pioneer-coins-8.1.72.tgz#2dacb3ccd78bf5ae84155aa39e90ebeff2bb0534"
+  integrity sha512-Jhf5J0lvHbjWhcaa6IKqvQtHiYYR0l7kDDmN/RI6N+d+nm8/YitvUB/UzbODKAfbpaLenbdKoJ8uc4MyLkEX3Q==
+  dependencies:
+    bech32 "^1.1.4"
+    bignumber.js "^9.0.1"
+    bitcoin-regex "^2.0.0"
+    bitcoincash-regex "^1.1.8"
+    bs58check "^3.0.1"
+    crypto-js "^4.0.0"
+    dash-regex "^1.0.10"
+    dogecoin-regex "^1.0.9"
+    ethereum-regex "^1.1.12"
+    ethereum-tx-decoder "^3.0.0"
+    litecoin-regex "^1.0.8"
+    monero-regex "^1.0.8"
+    neo-regex "^1.0.7"
+    ripple-regex "^1.1.8"
+
 "@pioneer-platform/pioneer-coins@^8.1.19", "@pioneer-platform/pioneer-coins@^8.1.68":
   version "8.1.69"
   resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-coins/-/pioneer-coins-8.1.69.tgz#e252e312a07d619ee2ff69cdaf8ac14344436bd4"

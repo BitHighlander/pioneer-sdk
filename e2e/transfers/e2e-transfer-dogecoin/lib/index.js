@@ -136,8 +136,8 @@ const test_service = async function () {
         let app = new SDK.SDK(spec, config);
         // log.info(tag,"app: ",app)
         //get HDwallet
-        // let wallet = await start_keepkey_controller()
-        let wallet = await start_software_wallet();
+        let wallet = await start_keepkey_controller();
+        //let wallet = await start_software_wallet()
         // log.info(tag,"wallet: ",wallet)
         //init with HDwallet
         let result = await app.init(wallet);

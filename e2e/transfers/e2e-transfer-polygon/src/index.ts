@@ -12,7 +12,6 @@ require("dotenv").config({path:'../../../../.env'})
 const TAG  = " | e2e-test | "
 
 import * as core from "@shapeshiftoss/hdwallet-core";
-import * as native from "@shapeshiftoss/hdwallet-native";
 import { NativeAdapter } from '@shapeshiftoss/hdwallet-native'
 import { KeepKeySdk } from '@keepkey/keepkey-sdk'
 import { KkRestAdapter } from '@keepkey/hdwallet-keepkey-rest'
@@ -24,23 +23,26 @@ let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'ethereum'
-let ASSET = 'ETH'
+
+let BLOCKCHAIN = 'polygon'
+let ASSET = 'POLY'
 let MIN_BALANCE = process.env['MIN_BALANCE_ETH'] || "0.004"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.0005"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.001"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
 let FAUCET_ETH_ADDRESS = process.env['FAUCET_ETH_ADDRESS']
 let FAUCET_ADDRESS = FAUCET_ETH_ADDRESS
 if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
-let noBroadcast = true
+//hdwallet Keepkey
+let noBroadcast = false
 
 console.log("spec: ",spec)
 console.log("wss: ",wss)
 
+//metamask user
 let blockchains = [
-    'bitcoin','ethereum','thorchain','bitcoincash','litecoin','binance','cosmos','dogecoin','osmosis'
+    'ethereum','avalanche'
 ]
 
 let txid:string
@@ -60,9 +62,11 @@ const start_keepkey_controller = async function(){
             },
         }
         let sdk = await KeepKeySdk.create(config)
+        console.log(config.apiKey)
         const keyring = new core.Keyring();
         // @ts-ignore
         let wallet = await KkRestAdapter.useKeyring(keyring).pairDevice(sdk)
+        console.log("wallet: ",wallet)
         return wallet
     }catch(e){
         console.error(e)
@@ -86,6 +90,7 @@ const start_software_wallet = async function(){
         console.error(e)
     }
 }
+
 
 const test_service = async function () {
     let tag = TAG + " | test_service | "
@@ -116,59 +121,78 @@ const test_service = async function () {
 
         //get HDwallet
         let wallet = await start_keepkey_controller()
-        //let wallet = await start_software_wallet()
-        // log.debug(tag,"wallet: ",wallet)
+        assert(wallet)
+        // let wallet = await start_software_wallet()
+        log.debug(tag,"wallet: ",wallet)
 
         //init with HDwallet
         let result = await app.init(wallet)
-        log.debug(tag,"result: ",result)
-        assert(app.username)
-        log.info(tag,"pubkeys: ",app.pubkeys.length)
-        log.info(tag,"balances: ",app.balances.length)
-        log.info("app.pubkeys: ",app.pubkeys)
+        log.info(tag,"result init: ",result)
+        assert(result)
+
+        //pair wallet
+        if(!app.isConnected){
+            let resultPair = await app.pairWallet(wallet)
+            log.info(tag,"resultPair: ",resultPair)
+        }
+
+        //blockchain
+        if(app.blockchains.indexOf(BLOCKCHAIN) === -1) throw Error("Blockchain not enabled! "+BLOCKCHAIN)
+
+        //path
+        let path = app.paths.filter((e:any) => e.symbol === ASSET)
+        log.info("path: ",path)
+        assert(path[0])
+        
         let pubkey = app.pubkeys.filter((e:any) => e.symbol === ASSET)
         log.info("pubkey: ",pubkey)
-        log.info("app.pubkeys: ",app.pubkeys)
         assert(pubkey[0])
-        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
-        log.info("pubkeySynced: ",pubkeySynced)
-        assert(pubkeySynced)
-        assert(pubkeySynced.balances)
+
+        let balance = app.balances.filter((e:any) => e.symbol === ASSET)
+        log.info("balance: ",balance)
+        log.info("balance: ",balance[0].balance)
+        assert(balance)
+        assert(balance[0])
+        assert(balance[0].balance)
         
+        if(balance[0].balance <= TEST_AMOUNT) {
+            log.info(tag,"balance: ",balance[0].balance," TEST_AMOUNT: ",TEST_AMOUNT)
+            throw Error("Failed balance check! YOU ARE BROKE!")
+        }
+
         let send = {
-            context:pubkeySynced.context,
             blockchain:BLOCKCHAIN,
             asset:ASSET,
             address:FAUCET_ADDRESS,
-            amount:TEST_AMOUNT
+            amount:TEST_AMOUNT,
+            noBroadcast:true
         }
 
         let tx = {
             type:'sendToAddress',
-            context:pubkeySynced.context,
             payload:send
         }
 
         console.log("tx: ",tx)
-        //build
-        let invocation = await app.build(tx)
-        log.info(tag,"invocation: ",invocation)
+        let invocationId = await app.build(tx)
+        log.info(tag,"invocationId: ",invocationId)
+        assert(invocationId)
 
         //sign
-        invocation= await app.sign(invocation, wallet)
-        log.info(tag,"invocation: ",invocation)
-        invocation.coin = send.asset
-        invocation.noBroadcast = false
-        invocation.sync = true
+        let resultSign = await app.sign(invocationId, wallet)
+        log.info(tag,"resultSign: ",resultSign)
+        assert(resultSign)
 
-        //broadcast
-        let resultBroadcast = await app.broadcast(invocation)
-        log.info(tag,"resultBroadcast: ",resultBroadcast)
-        log.info(tag,"resultBroadcast: ",JSON.stringify(resultBroadcast))
-        assert(resultBroadcast)
-        assert(resultBroadcast.broadcast)
-        assert(resultBroadcast.broadcast.success)
-        
+        // //get txid
+        // let payload = {
+        //     noBroadcast:false,
+        //     sync:true,
+        //     invocationId
+        // }
+        // let resultBroadcast = await app.broadcast(payload)
+        // log.info(tag,"resultBroadcast: ",resultBroadcast)
+        // assert(resultBroadcast)
+        //
         // /*
         //     Status codes
         //     -1: errored
@@ -187,11 +211,11 @@ const test_service = async function () {
         //
         // //wait till confirmed
         // while(!isConfirmed){
-        //     log.debug("check for confirmations")
+        //     log.info("check for confirmations")
         //     //
         //     let invocationInfo = await app.getInvocation(invocationId)
         //     log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-        //     log.debug(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
+        //     log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
         //
         //     if(invocationInfo.broadcast.noBroadcast){
         //         log.notice(tag,"noBroadcast flag found: exiting ")
@@ -210,7 +234,7 @@ const test_service = async function () {
         //     }
         //
         //     await sleep(3000)
-        //     log.debug("sleep over")
+        //     log.info("sleep over")
         // }
 
         log.notice("****** TEST PASS ******")
