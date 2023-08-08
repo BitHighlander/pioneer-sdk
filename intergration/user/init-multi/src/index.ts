@@ -216,7 +216,11 @@ const test_service = async function () {
         assert(app.context)
         log.info(tag,"app.context: ",app.context)
         // assert(result.User)
-
+        //pubkey context
+        let pubkeyContextPre = await app.pubkeyContext
+        assert(pubkeyContextPre)
+        log.info("pubkeyContextPre: ",pubkeyContextPre)
+        
         //get balances for keepkey
         //balances
         log.info("app.balances: ",app.balances)
@@ -398,14 +402,43 @@ const test_service = async function () {
         log.info("wallets: ",wallets)
         assert(wallets.length,3)
 
-        //set to current wallet
-        let changeContext = await app.setContext(wallets[0].wallet)
-        // log.info("changeContext: ",changeContext)
-        assert(changeContext)
-        assert(app.context, wallets[0].context)
-        assert(app.wallet)
-        log.info("app.wallet: ",app.wallet)
-        //get address on wallet on context
+        //setBlockchainContext to eth
+        let ETH_BLOCKCHAIN = {
+            blockchain: 'ethereum',
+            caip: 'eip155:1/slip44:60',
+            chainId: 1,
+            description: 'more info here: https://ethereum.org This is a EVM network with chainId: 1 Follows EIP:155',
+            explorer: 'https://ethereum.org',
+            faucets: [],
+            feeAssetCaip: 'eip155:1/slip44:60',
+            feeAssetName: 'ethereum',
+            feeAssetRank: 2,
+            feeAssetSymbol: 'ETH',
+            image: 'https://pioneers.dev/coins/ethereum-mainnet.png',
+            isCharted: false,
+            name: 'ethereum',
+            network: 'ETH',
+            service: null,
+            symbol: 'ETH',
+            tags: [
+                'KeepKeySupport',
+                'DappSupport',
+                'WalletConnectSupport',
+                'EVM',
+                'EIP:155',
+                'ethereum',
+                'Ether',
+                'ETH',
+                1,
+                null
+            ],
+            type: 'EVM'
+        }
+
+        let setBlockchainContext = await app.setBlockchainContext(ETH_BLOCKCHAIN)
+        assert(setBlockchainContext)
+        log.info(tag,"setBlockchainContext: ",setBlockchainContext)
+        assert.strictEqual(app.blockchainContext.chainId, ETH_BLOCKCHAIN.chainId)
 
         const addressInfo = {
             addressNList: [2147483692, 2147483708, 2147483648, 0, 0],
@@ -413,19 +446,51 @@ const test_service = async function () {
             scriptType: "ethereum",
             showDisplay: false,
         };
-        log.info(tag,"app.wallet: ",app.wallet)
+        const addressWallet0 = await wallets[0].wallet.ethGetAddress(addressInfo);
+        const addressWallet1 = await wallets[1].wallet.ethGetAddress(addressInfo);
+        const addressWallet2 = await wallets[2].wallet.ethGetAddress(addressInfo);
+        log.info(tag,"addressWallet0: ", addressWallet0);
+        log.info(tag,"addressWallet1: ", addressWallet1);
+        log.info(tag,"addressWallet2: ", addressWallet2);
+        log.info(tag,"Wallet0 type: ", wallets[0].type);
+        log.info(tag,"Wallet1 type: ", wallets[1].type);
+        log.info(tag,"Wallet2 type: ", wallets[2].type);
+        
+        //set to current wallet
+        let changeContext = await app.setContext(wallets[0].wallet)
+        log.info("changeContext: ",changeContext)
+        assert(changeContext)
+        assert.strictEqual(app.context, wallets[0].context)
+        assert.strictEqual(app.wallet.type, wallets[0].type)
+        assert(app.wallet)
+        // log.info("app.wallet: ",app.wallet)
+        log.info("pubkeyContext: ",app.pubkeyContext)
+        
+        // log.info(tag,"app.wallet: ",app.wallet)
         const address = await app.wallet.ethGetAddress(addressInfo);
         console.log("address0: ", address);
-        
-        
+        assert(address)
+        assert(app.pubkeyContext)
+        assert.strictEqual(address,app.pubkeyContext.master)
+        //get address on wallet on context
+
+        //change context to 1 from 0
+        log.info("wallet.type: ",wallets[1].wallet.type)
         let changeContext1 = await app.setContext(wallets[1].wallet)
-        // log.info("changeContext: ",changeContext)
+        log.info("changeContext: ",changeContext)
         assert(changeContext)
         assert(app.context, wallets[1])
         assert(app.wallet)
+        log.info(tag,"app.wallet.type: ",app.wallet.type)
+        log.info(tag,"wallets[1].wallet.type: ",wallets[1].wallet.type)
+        log.info(tag,"wallets[0].wallet.type: ",wallets[0].wallet.type)
+        assert.strictEqual(app.wallet.type, wallets[1].wallet.type)
+
         const address1 = await app.wallet.ethGetAddress(addressInfo);
-        console.log("address1: ", address1);
-        
+        log.info(tag,"address1: ", address1);
+        log.info(tag,"app.pubkeyContext: ",app.pubkeyContext.address)
+        assert.strictEqual(address1,app.pubkeyContext.master)
+
         let changeContext2 = await app.setContext(wallets[2].wallet)
         // log.info("changeContext: ",changeContext)
         assert(changeContext)
@@ -436,19 +501,59 @@ const test_service = async function () {
         
         //verify wallet has changed
 
-        // let blockchainContext = await app.blockchainContext
-        // assert(blockchainContext)
-        // log.info("blockchainContext: ",blockchainContext)
-        //
-        // //set blockchain context
-        // let changeBlockchainContext = await app.setBlockchainContext(BLOCKCHAIN)
-        // assert(changeBlockchainContext)
-        // log.info("changeBlockchainContext: ",changeBlockchainContext)
-        //
-        // let blockchainContextPost = await app.blockchainContext
-        // assert(blockchainContextPost, BLOCKCHAIN)
-        // log.info("blockchainContextPost: ",blockchainContextPost)
-        //
+        let blockchainContext = await app.blockchainContext
+        assert(blockchainContext)
+        log.info("blockchainContext: ",blockchainContext)
+        
+        let BLOCKCHAIN_NEW = {
+            "name": "polygon",
+            "type": "EVM",
+            "tags": [
+                "KeepKeySupport",
+                "WalletConnectSupport",
+                "DappSupport",
+                "Polygon Mainnet",
+                "MATIC",
+                "Polygon"
+            ],
+            "image": "https://pioneers.dev/coins/polygon.png",
+            "blockchain": "polygon mainnet",
+            "symbol": "POLYGON",
+            "service": "https://polygon-rpc.com/",
+            "chainId": 137,
+            "network": [
+                "https://polygon-rpc.com/",
+                "https://rpc-mainnet.matic.network",
+                "https://matic-mainnet.chainstacklabs.com",
+                "https://rpc-mainnet.maticvigil.com",
+                "https://rpc-mainnet.matic.quiknode.pro",
+                "https://matic-mainnet-full-rpc.bwarelabs.com"
+            ],
+            "facts": [
+                {
+                    "signer": "0x3f2329c9adfbccd9a84f52c906e936a42da18cb8",
+                    "payload": "{\"blockchain\":\"Polygon Mainnet\",\"symbol\":\"MATIC\",\"chainId\":137}",
+                    "signature": "0xef879877b626ec72ad68d3b0e5d62d95123e730b91e12c5bdaae5d5270c8e2b61e1f9a4a2c9b844de0a6dd4746ed79da6c8809a5a8a78fd8e03fd32ddaa810bf1c"
+                }
+            ],
+            "infoURL": "https://polygon.technology/",
+            "shortName": "MATIC",
+            "nativeCurrency": {
+                "name": "MATIC",
+                "symbol": "MATIC",
+                "decimals": 18
+            },
+            "faucets": []
+        }
+        
+        //set blockchain context
+        let changeBlockchainContext = await app.setBlockchainContext(BLOCKCHAIN_NEW)
+        assert(changeBlockchainContext)
+        log.info("changeBlockchainContext: ",changeBlockchainContext)
+
+        let blockchainContextPost = await app.blockchainContext
+        log.info("blockchainContextPost: ",blockchainContextPost)
+
         // //set asset context
         // let assetContext = await app.assetContext
         // assert(assetContext)
@@ -462,7 +567,21 @@ const test_service = async function () {
         // let assetContextPost = await app.assetContext
         // assert(assetContextPost, ASSET)
         // log.info("assetContextPost: ",assetContextPost)
-
+        
+        //pubkey context
+        let pubkeyContext = await app.pubkeyContext
+        assert(pubkeyContext)
+        log.info("pubkeyContext: ",pubkeyContext)
+        
+        //set pubkey context
+        let pubkeys = app.pubkeys
+        log.info("pubkeys: ",pubkeys)
+        
+        let pubkeyContextChange = await app.setPubkeyContext(pubkeys[3])
+        assert(pubkeyContextChange)
+        log.info("pubkeyContextChange: ",pubkeyContextChange)
+        
+        
         //attempt to change wallet context to unpaired wallet
 
         //attempt to change blockchain context to unsupported by current wallet

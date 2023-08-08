@@ -69,12 +69,9 @@ export class SDK {
     public status: string;
     public apiVersion: string;
     public initialized: boolean;
-    public invocationContext: string;
     public invocations: any;
-    public assetContext: string;
-    public blockchainContext: string;
-    public assetBalanceUsdValueContext: string;
-    public assetBalanceNativeContext: string;
+    public assetContext: any;
+    public blockchainContext: any;
     public invoke: any;
     public wss: any;
     public username: any;
@@ -97,6 +94,7 @@ export class SDK {
     // public setWalletContext: (context: string) => Promise<any>;
     public setBlockchainContext: (blockchain: string) => Promise<any>;
     public setAssetContext: (blockchain: string) => Promise<any>;
+    private setPubkeyContext: (pubkey: any) => Promise<any>;
     public startSocket: () => Promise<any>;
     public stopSocket: () => any;
     public updateContext: () => Promise<any>;
@@ -125,8 +123,9 @@ export class SDK {
     public getInvocations: () => Promise<any>;
     public isSynced: boolean;
     publicAddress: string;
-    public setContext: (wallet: any) => Promise<string>;
+    public setContext: (wallet: any) => Promise<{ success: boolean } | { success: boolean; error: string }>;
     private disconnectWallet: (context: string) => Promise<any>;
+    private pubkeyContext: any;
     constructor(spec:string,config:any) {
         this.status = 'preInit'
         this.apiVersion = ""
@@ -135,8 +134,8 @@ export class SDK {
         this.wss = config.wss || 'wss://pioneers.dev'
         this.username = config.username // or generate?
         this.queryKey = config.queryKey // or generate?
-        this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
-        //this.spec = config.spec || 'https://pioneers.dev/spec/swagger.json'
+        this.spec = config.spec || 'https://pioneers.dev/spec/swagger'
+        //this.spec = config.spec || 'https://pioneers.dev/spec/swagger'
         //02b14225-f62e-4e4f-863e-a8145e5befe5
         this.rangoApiKey = config.rangoApiKey || '02b14225-f62e-4e4f-863e-a8145e5befe5'
         //combine custom with default paths
@@ -153,12 +152,58 @@ export class SDK {
         this.invocations = []
         this.balances = []
         this.markets = {}
-        this.context = ""
-        this.invocationContext = ""
-        this.assetContext = "ETH"
-        this.blockchainContext = "ethereum"
-        this.assetBalanceNativeContext = ""
-        this.assetBalanceUsdValueContext = ""
+        this.assetContext = {
+            name: 'ethereum',
+            type: 'coin',
+            caip: 'eip155:1/slip44:60',
+            tags: [
+                'ethereum',
+                'isAsset',
+                'isNative',
+                'KeepKeySupport',
+                'DappSupport',
+                'WalletConnectSupport'
+            ],
+            blockchain: 'ethereum',
+            symbol: 'ETH',
+            decimals: 18,
+            image: 'https://pioneers.dev/coins/ethereum.png',
+            description: 'Open source platform to write and distribute decentralized applications.',
+            website: 'https://ethereum.org/',
+            explorer: 'https://etherscan.io/',
+            rank: 2
+        }
+        this.blockchainContext = {
+            blockchain: 'ethereum',
+            caip: 'eip155:1/slip44:60',
+            chainId: 1,
+            description: 'more info here: https://ethereum.org This is a EVM network with chainId: 1 Follows EIP:155',
+            explorer: 'https://ethereum.org',
+            faucets: [],
+            feeAssetCaip: 'eip155:1/slip44:60',
+            feeAssetName: 'ethereum',
+            feeAssetRank: 2,
+            feeAssetSymbol: 'ETH',
+            image: 'https://pioneers.dev/coins/ethereum-mainnet.png',
+            isCharted: false,
+            name: 'ethereum',
+            network: 'ETH',
+            service: null,
+            symbol: 'ETH',
+            tags: [
+                'KeepKeySupport',
+                'DappSupport',
+                'WalletConnectSupport',
+                'EVM',
+                'EIP:155',
+                'ethereum',
+                'Ether',
+                'ETH',
+                1,
+                null
+            ],
+            type: 'EVM'
+        }
         this.wallets = []
         this.events = {}
         this.totalValueUsd = 0
@@ -326,6 +371,13 @@ export class SDK {
                         log.info(tag,'not wallets paired!')
                     }
                 }
+                
+                //TODO validate pubkey is from context, they should always sync
+                if(!this.pubkeyContext){
+                    log.info(tag,"setting pubkey context: ",this.pubkeys[0])
+                    if(this.pubkeys[0])this.pubkeyContext = this.pubkeys[0]
+                }
+
                 //done registering, now get the user
                 //this.refresh()
                 if(!this.pioneer) throw Error("Failed to init pioneer server!")
@@ -340,7 +392,7 @@ export class SDK {
                 //get wallet context
                 if(!wallet) throw Error("Can only set context of a paired wallet!")
                 log.info(tag,"wallet type: ",wallet.type)
-                log.info(tag,"wallet: ",wallet)
+                //log.info(tag,"wallet: ",wallet)
                 let ethAddress
                 if(wallet.type === 'metamask') {
                     ethAddress = 'metamask'
@@ -357,10 +409,8 @@ export class SDK {
                 }
                 if(!ethAddress) throw Error("Failed to get eth address!")
                 //get context
-                let context = ethAddress+".wallet.json"
+                let context = ethAddress+".wallet"
                 log.info(tag,"context: ",context)
-                this.context = context
-                this.wallet = wallet
                 let walletInfo: any = {
                     context: context,
                     type: wallet.type,
@@ -371,14 +421,38 @@ export class SDK {
                 const isContextExist = this.wallets.some((wallet: any) => wallet.context === context);
                 isContextExist ? null : this.wallets.push(walletInfo);
                 
-                if(context && this.context && this.context !== context){
-                    let result = await this.pioneer.SetContext({context})
-                    log.debug(tag,"result: ",result)
+                if(true){
                     //if success
                     this.context = context
                     this.wallet = wallet
-                    return result.data
+                    // let result = await this.pioneer.SetContext({context})
+                    // log.debug(tag,"result: ",result)
+
+                    //pubkey pubkey context
+                    let blockchain = this.blockchainContext
+                    //get pubkey for blockchain
+                    log.info(tag,"this.pubkeys: ",this.pubkeys)
+                    log.info(tag,"blockchainContext: ",blockchain)
+                    log.info(tag,"blockchain: ",blockchain.name)
+                    log.info(tag,"context: ",context)
+                    let pubkeysForContext = this.pubkeys.filter((item: { context: string }) => item.context === context);
+                    log.info(tag, "pubkeysForContext: ", pubkeysForContext);
+
+                    let pubkey = pubkeysForContext.find(
+                        (item: { blockchain: any; context: string }) => item.blockchain === blockchain.name && item.context === context
+                    );
+                    log.info(tag, "pubkey: ", pubkey);
+
+                    if(pubkey) {
+                        this.pubkeyContext = pubkey
+                        log.info(tag,"pubkeyContext: ",this.pubkeyContext)
+                    } else {
+                        throw Error("unable to find ("+blockchain.name+") pubkey for context! "+context)
+                    }
+                    return {success:true}
                 }else{
+                    this.context = context
+                    this.wallet = wallet
                     return {success:false,error:"already context="+context}
                 }
             }catch(e){
@@ -536,7 +610,28 @@ export class SDK {
         //         log.error(tag, "e: ", e)
         //     }
         // }
-        this.setBlockchainContext = async function (blockchain:string) {
+        this.setPubkeyContext = async function (pubkeyObj) {
+            const tag = TAG + " | setPubkeyContext | ";
+            try {
+                const pubkeyToFind = pubkeyObj.pubkey;
+
+                // Find pubkey in pubkeys array
+                const pubkeyFound = this.pubkeys.find((item: { pubkey: any }) => item.pubkey === pubkeyToFind);
+                if (pubkeyFound) {
+                    // If pubkey is found, set the pubkeyContext and return true
+                    this.pubkeyContext = pubkeyFound;
+                    return true;
+                } else {
+                    // If pubkey is not found, return false
+                    return false;
+                }
+            } catch (e) {
+                // Handle any errors that might occur
+                log.error(tag, "Error: ", e);
+                throw e
+            }
+        };
+        this.setBlockchainContext = async function (blockchain:any) {
             let tag = TAG + " | setBlockchainContext | "
             try {
                 if(blockchain && this.blockchainContext && this.blockchainContext !== blockchain){
@@ -722,10 +817,10 @@ export class SDK {
                 if(userInfo.balances)this.balances = userInfo.balances
                 // if(userInfo.pubkeys && this.pubkeys.length < userInfo.pubkeys.length)this.pubkeys = userInfo.pubkeys
                 if(userInfo.totalValueUsd)this.totalValueUsd = parseFloat(userInfo.totalValueUsd)
-                if(userInfo.invocationContext)this.invocationContext = userInfo.invocationContext
+                //if(userInfo.invocationContext)this.invocationContext = userInfo.invocationContext
                 if(userInfo.assetContext)this.assetContext = userInfo.assetContext
-                if(userInfo.assetBalanceNativeContext)this.assetBalanceNativeContext = userInfo.assetBalanceNativeContext
-                if(userInfo.assetBalanceUsdValueContext)this.assetBalanceUsdValueContext = userInfo.assetBalanceUsdValueContext
+                //if(userInfo.assetBalanceNativeContext)this.assetBalanceNativeContext = userInfo.assetBalanceNativeContext
+                //if(userInfo.assetBalanceUsdValueContext)this.assetBalanceUsdValueContext = userInfo.assetBalanceUsdValueContext
 
                 return userInfo
             } catch (e) {
@@ -1241,6 +1336,13 @@ export class SDK {
                 //keep it short but unique. label + last 4 of id
                 let masterEth = ethMaster || wallet.ethAddress || await this.getAddress('ETH')
                 let context = masterEth+".wallet"
+                
+                //for all pubkeys tag them with the context
+                for(let i = 0; i < pubkeys.length; i++){
+                    //@ts-ignore
+                    pubkeys[i].context = context
+                }
+                
                 let watchWallet = {
                     "WALLET_ID": context,
                     "TYPE": "watch",
