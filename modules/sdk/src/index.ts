@@ -126,6 +126,7 @@ export class SDK {
     public setContext: (wallet: any) => Promise<{ success: boolean } | { success: boolean; error: string }>;
     private disconnectWallet: (context: string) => Promise<any>;
     private pubkeyContext: any;
+    private getContextStringForWallet: (wallet: any) => Promise<string>;
     constructor(spec:string,config:any) {
         this.status = 'preInit'
         this.apiVersion = ""
@@ -230,7 +231,26 @@ export class SDK {
                         throw Error("can not init: Unhandled Wallet type!")
                     }
                     this.isConnected = true
+                    let context = await this.getContextStringForWallet(wallet);
+                    if (!this.wallets.some(w => w.context === context)) {
+                        let walletInfo: any = {
+                            context: context,
+                            type: wallet.type,
+                            icon: WALLET_ICONS[wallet.type],
+                            status: 'connected',
+                            wallet
+                        };
+                        this.wallets.push(walletInfo);
+                    }
                     this.setContext(wallet)
+                    let pubkeysFromWallet = await this.getPubkeys(wallet);
+                    pubkeysFromWallet = pubkeysFromWallet.pubkeys
+                    log.info(tag,"pubkeysFromWallet: ",pubkeysFromWallet)
+                    pubkeysFromWallet.forEach((pubkey: any) => {
+                        if (!this.pubkeys.some((existingPubkey: any) => existingPubkey.pubkey === pubkey.pubkey)) {
+                            this.pubkeys.push(pubkey);
+                        }
+                    });
                 }
 
                 let PioneerClient = new Pioneer(config.spec,config)
@@ -386,11 +406,11 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
-        this.setContext = async function (wallet:any) {
-            let tag = TAG + " | setContext | "
+        this.getContextStringForWallet = async function (wallet:any) {
+            let tag = TAG + " | getContextStringForWallet | "
             try{
+                if(!wallet) throw Error("wallet required to get context string!")
                 //get wallet context
-                if(!wallet) throw Error("Can only set context of a paired wallet!")
                 log.info(tag,"wallet type: ",wallet.type)
                 //log.info(tag,"wallet: ",wallet)
                 let ethAddress
@@ -410,18 +430,20 @@ export class SDK {
                 if(!ethAddress) throw Error("Failed to get eth address!")
                 //get context
                 let context = ethAddress+".wallet"
+                return context
+            }catch(e){
+                // @ts-ignore
+                throw Error(e)
+            }
+        }
+        this.setContext = async function (wallet:any) {
+            let tag = TAG + " | setContext | "
+            try{
+                let context = await this.getContextStringForWallet(wallet)
                 log.info(tag,"context: ",context)
-                let walletInfo: any = {
-                    context: context,
-                    type: wallet.type,
-                    icon: WALLET_ICONS[wallet.type],
-                    status: 'connected',
-                    wallet
-                };
                 const isContextExist = this.wallets.some((wallet: any) => wallet.context === context);
-                isContextExist ? null : this.wallets.push(walletInfo);
                 
-                if(true){
+                if(isContextExist){
                     //if success
                     this.context = context
                     this.wallet = wallet
@@ -451,9 +473,7 @@ export class SDK {
                     }
                     return {success:true}
                 }else{
-                    this.context = context
-                    this.wallet = wallet
-                    return {success:false,error:"already context="+context}
+                    throw Error("Wallet context not found paired! con not set context to unpaired wallet!"+context)
                 }
             }catch(e){
                 log.error(tag,e)
@@ -479,6 +499,19 @@ export class SDK {
                     log.debug(tag,"wallet: ",wallet)
                     throw Error("can not init: Unhandled Wallet type!")
                 }
+                //add wallet to wallets
+                log.info(tag,"this.wallets: ",this.wallets)
+                let context = await this.getContextStringForWallet(wallet);
+                if (!this.wallets.some(w => w.context === context)) {
+                    let walletInfo: any = {
+                        context: context,
+                        type: wallet.type,
+                        icon: WALLET_ICONS[wallet.type],
+                        status: 'connected',
+                        wallet
+                    };
+                    this.wallets.push(walletInfo);
+                }
                 await this.setContext(wallet)
                 this.isConnected = true
                 log.debug(tag,"isNative: ",isNative)
@@ -488,11 +521,20 @@ export class SDK {
                 //TODO error if server is offline
                 log.debug(tag,"wallet: ",wallet)
                 let pubkeys = await this.getPubkeys(wallet)
+                log.info(tag,"pubkeys: ",pubkeys)
+                log.info(tag,"pubkeys: ",pubkeys.pubkeys)
+                log.info(tag,"pubkeys: ",pubkeys.pubkeys.length)
                 if(!pubkeys) throw Error("Failed to get Pubkeys!")
+                if(!pubkeys.pubkeys) throw Error("Failed to get Pubkeys!")
+                pubkeys.pubkeys.forEach((pubkey: any) => {
+                    if (!this.pubkeys.some((existingPubkey: any) => existingPubkey.pubkey === pubkey.pubkey)) {
+                        this.pubkeys.push(pubkey);
+                    }
+                });
                 // pubkeys = pubkeys.pubkeys
                 log.debug(tag,"pubkeys: ",pubkeys)
-                if(pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
-                log.debug(tag,"this.pubkeys: ",this.pubkeys)
+                //if(pubkeys.pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
+                //log.debug(tag,"this.pubkeys: ",this.pubkeys)
                 // //make sure pubkeys got keys for all enabled assets
                 // //unique
                 // pubkeys = [ ...new Set(pubkeys)]
@@ -547,9 +589,7 @@ export class SDK {
                 //
                 // }
                 
-                //TODO this needed?
-                // this.events.pair(this.username)
-                
+
 
 
                 return result

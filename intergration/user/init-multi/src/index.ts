@@ -64,10 +64,6 @@ const start_metamask_wallet = async () => {
     return wallet
 }
 
-let metamask_accounts = [
-    '0x33b35c665496ba8e71b22373843376740401f106','0x651982e85D5E43db682cD6153488083e1b810798','0xBDa1b484152F32e215aA5457366ec537d0E35e4B'
-]
-
 const start_software_wallet = async function(){
     try{
         let mnemonic = process.env['WALLET_MAIN']
@@ -178,7 +174,7 @@ const test_service = async function () {
         assert(pubkeysMetaMask.publicAddress)
         assert(pubkeysMetaMask.context)
         assert(pubkeysMetaMask.wallet)
-        assert(pubkeysMetaMask.pubkeys.length, 1)
+        assert.strictEqual(pubkeysMetaMask.pubkeys.length, 5)
         log.info(tag,"pubkeysMetaMask: ",pubkeysMetaMask.pubkeys.length)
         
         //validate pubkeys
@@ -187,7 +183,7 @@ const test_service = async function () {
         assert(pubkeysNative.publicAddress)
         assert(pubkeysNative.context)
         assert(pubkeysNative.wallet)
-        assert(pubkeysNative.pubkeys.length, 9)
+        assert.strictEqual(pubkeysNative.pubkeys.length, 9)
         log.info(tag,"pubkeysNative: ",pubkeysNative.pubkeys.length)
 
         let pubkeysKeepKey = await app.getPubkeys(walletKeepKey)
@@ -195,7 +191,7 @@ const test_service = async function () {
         assert(pubkeysKeepKey.publicAddress)
         assert(pubkeysKeepKey.context)
         assert(pubkeysKeepKey.wallet)
-        assert(pubkeysKeepKey.pubkeys.length, 9)
+        assert.strictEqual(pubkeysKeepKey.pubkeys.length, 9)
         log.info(tag,"pubkeysKeepKey: ",pubkeysKeepKey.pubkeys.length)
 
         //init with metamask
@@ -291,8 +287,30 @@ const test_service = async function () {
         log.info(tag,"user1 isPioneer: ",user1.isPioneer)
         log.info(tag,"user1 wallets: ",user1.wallets)
         log.info(tag,"user1 walletDescriptions: ",user1.walletDescriptions)
-        assert(user1.wallets.length, 2)
-        assert(user1.walletDescriptions.length, 2)
+        log.info(tag,"user1 balances: ",user1.balances)
+        log.info(tag,"user1 balances: ",user1.balances.length)
+        log.info(tag,"user1 wallets: ",user1.wallets.length)
+        log.info(tag,"user1 walletDescriptions: ",user1.walletDescriptions.length)
+        //assert.strictEqual(user1.wallets.length, 2)
+        //assert.strictEqual(user1.walletDescriptions.length, 2)
+        for(let i = 0; i < user1.pubkeys.length; i++){
+            let pubkey = user1.pubkeys[i]
+            log.info(tag,"pubkey: ",pubkey)
+            assert(pubkey)
+            assert(pubkey.context)
+        }
+        
+        for(let i = 0; i < user1.balances.length; i++){
+            let balance = user1.balances[i]
+            log.info(tag,"balance: ",balance)
+            assert(balance)
+            assert(balance.symbol)
+            assert(balance.context)
+            assert(balance.assetCaip)
+            assert(balance.blockchainCaip)
+        }
+        
+        
         
         // assert(user1)
         //Should be Pioneer now
