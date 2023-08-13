@@ -1836,12 +1836,12 @@
     neo-regex "^1.0.7"
     ripple-regex "^1.1.8"
 
-"@pioneer-platform/pioneer-events@8.1.44":
-  version "8.1.44"
-  resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-events/-/pioneer-events-8.1.44.tgz#487a06d8fedeecebb0dfe03fd73578e32c71a582"
-  integrity sha512-Rs76TpcQx07lcTHdTbzJNlbf2ha4cA9afwP7fB/lTt8qWnJ5daiObCuJRmAFuGjhA/ZwdBv6WRxL0eLuPQPmfw==
+"@pioneer-platform/pioneer-events@8.1.49":
+  version "8.1.49"
+  resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-events/-/pioneer-events-8.1.49.tgz#7fe40631ecccf29b7f5fb02960209628dec066b3"
+  integrity sha512-6TGFUqlefReyVE/QD2Qy+5EhNGKZAwYo8FKmf9ksgKksglgWYbzL4Yca96Z1JeG7+saeB5piM7knT71xTTTtWA==
   dependencies:
-    "@pioneer-platform/pioneer-types" "^8.1.53"
+    "@pioneer-platform/pioneer-types" "^8.1.55"
     "@types/node" "^18.15.11"
     events "^3.3.0"
     socket.io-client "^4.5.4"
@@ -1870,12 +1870,12 @@
   dependencies:
     "@pioneer-platform/pioneer-types" "^8.1.51"
 
-"@pioneer-platform/pioneer-types@^8.1.53":
-  version "8.1.53"
-  resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-types/-/pioneer-types-8.1.53.tgz#f0d70d2194c0f5c8554bcb355566862dd7a4ee41"
-  integrity sha512-3ZE1YfRPJfZkNKmTKmLlmrsHc8wE7k/j2u0Y5jZ+s7GmYzNPd1odRjtJ0h3mOzsE5qZc03lRdT/uNOtiJYbNYg==
+"@pioneer-platform/pioneer-types@^8.1.55":
+  version "8.1.55"
+  resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-types/-/pioneer-types-8.1.55.tgz#45a336382e78b36e9d089d705c2022faaa6434f7"
+  integrity sha512-6FaRks84RK4Gzk57+oWrXAu94YQqTyGNU/x6CB3BZWZrbDpP/VA6RHs1i8NEWdnvZ6SN8CadyJQaBKMVjxsSGA==
   dependencies:
-    "@pioneer-platform/pioneer-types" "^8.1.53"
+    "@pioneer-platform/pioneer-types" "^8.1.55"
 
 "@pkgjs/parseargs@^0.11.0":
   version "0.11.0"

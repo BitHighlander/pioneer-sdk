@@ -301,6 +301,12 @@ const test_service = async function () {
         let successSoftware = await app.pairWallet(walletSoftware);
         log.info(tag, "successSoftware: ", successSoftware);
         assert(successSoftware);
+        //count pubkeys from software
+        let pubkeysAll = app.pubkeys;
+        log.info(tag, "pubkeysAll: ", pubkeysAll.length);
+        let pubkeysSoftware = pubkeysAll.filter((e) => e.context === "0xC3aFFff54122658b89C31183CeC4F15514F34624.wallet");
+        log.info(tag, "pubkeysSoftware: ", pubkeysSoftware.length);
+        assert(pubkeysSoftware.length > 3);
         //verify all are paired
         //User
         let user2 = await result.User();

@@ -242,7 +242,7 @@ export class SDK {
                         };
                         this.wallets.push(walletInfo);
                     }
-                    this.setContext(wallet)
+                    await this.setContext(wallet)
                     let pubkeysFromWallet = await this.getPubkeys(wallet);
                     pubkeysFromWallet = pubkeysFromWallet.pubkeys
                     log.info(tag,"pubkeysFromWallet: ",pubkeysFromWallet)
@@ -442,7 +442,7 @@ export class SDK {
                 let context = await this.getContextStringForWallet(wallet)
                 log.info(tag,"context: ",context)
                 const isContextExist = this.wallets.some((wallet: any) => wallet.context === context);
-                
+                log.info(tag,"isContextExist: ",isContextExist)
                 if(isContextExist){
                     //if success
                     this.context = context
@@ -502,6 +502,7 @@ export class SDK {
                 //add wallet to wallets
                 log.info(tag,"this.wallets: ",this.wallets)
                 let context = await this.getContextStringForWallet(wallet);
+                log.info(tag,"context: ",context)
                 if (!this.wallets.some(w => w.context === context)) {
                     let walletInfo: any = {
                         context: context,
@@ -519,18 +520,28 @@ export class SDK {
                 log.debug(tag,"isMetaMask: ",isMetaMask)
                 
                 //TODO error if server is offline
-                log.debug(tag,"wallet: ",wallet)
+                // log.debug(tag,"wallet: ",wallet)
                 let pubkeys = await this.getPubkeys(wallet)
                 log.info(tag,"pubkeys: ",pubkeys)
                 log.info(tag,"pubkeys: ",pubkeys.pubkeys)
                 log.info(tag,"pubkeys: ",pubkeys.pubkeys.length)
                 if(!pubkeys) throw Error("Failed to get Pubkeys!")
                 if(!pubkeys.pubkeys) throw Error("Failed to get Pubkeys!")
-                pubkeys.pubkeys.forEach((pubkey: any) => {
-                    if (!this.pubkeys.some((existingPubkey: any) => existingPubkey.pubkey === pubkey.pubkey)) {
-                        this.pubkeys.push(pubkey);
-                    }
-                });
+                log.info("Pubkeys BEFORE pairing: ",this.pubkeys)
+                for(let i = 0; i < pubkeys.pubkeys.length; i++){
+                    let pubkey = pubkeys.pubkeys[i]
+                    log.info(tag,"pubkey: ",pubkey)
+                    log.info(tag,"pubkey.pubkey: ",pubkey.pubkey)
+                    log.info(tag,"pubkey.context: ",pubkey.context)
+                    this.pubkeys.push(pubkey)
+                }
+                log.info("Pubkeys AFTER pairing: ",this.pubkeys)
+
+                // pubkeys.pubkeys.forEach((pubkey: any) => {
+                //     if (!this.pubkeys.some((existingPubkey: any) => existingPubkey.pubkey === pubkey.pubkey)) {
+                //         this.pubkeys.push(pubkey);
+                //     }
+                // });
                 // pubkeys = pubkeys.pubkeys
                 log.debug(tag,"pubkeys: ",pubkeys)
                 //if(pubkeys.pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
@@ -872,6 +883,7 @@ export class SDK {
             try {
                 let output:any = {}
                 log.debug(tag,"checkpoint")
+                let context = await this.getContextStringForWallet(wallet);
                 //log.debug(tag,"wallet: ",wallet)
                 if(!wallet) throw Error("can not get pubkeys! Wallet not sent!")
                 if(!this.blockchains) throw Error("blockchains not set!")
@@ -1074,11 +1086,12 @@ export class SDK {
                         }
                         normalized.master = address
                         normalized.address = address
-
+                        normalized.context = context
                         pubkeys.push(normalized)
                         this.pubkeys.push(normalized)
                     }
                     log.debug(tag,"pubkeys:",pubkeys)
+                    
                     output.pubkeys = pubkeys
                     // this.pubkeys = pubkeys
                     if(pubkeys.length !== result.length) {
@@ -1283,7 +1296,7 @@ export class SDK {
                         }
                         normalized.master = address
                         normalized.address = address
-
+                        normalized.context = context
                         pubkeys.push(normalized)
                         this.pubkeys.push(normalized)
                     }
@@ -1341,7 +1354,8 @@ export class SDK {
                         network: 'ethereum',
                         master: wallet.ethAddress,
                         type: 'address',
-                        address: wallet.ethAddress
+                        address: wallet.ethAddress,
+                        context: 'metamask.wallet'
                     }
                     pubkeys.push(pubkeyEth)
                     this.pubkeys.push(pubkeyEth)
@@ -1363,7 +1377,8 @@ export class SDK {
                                 network: 'ethereum',
                                 master: account,
                                 type: 'address',
-                                address: account
+                                address: account,
+                                context: 'metamask.wallet'
                             }
                             pubkeys.push(pubkeyEth)
                         }
@@ -1375,13 +1390,6 @@ export class SDK {
 
                 //keep it short but unique. label + last 4 of id
                 let masterEth = ethMaster || wallet.ethAddress || await this.getAddress('ETH')
-                let context = masterEth+".wallet"
-                
-                //for all pubkeys tag them with the context
-                for(let i = 0; i < pubkeys.length; i++){
-                    //@ts-ignore
-                    pubkeys[i].context = context
-                }
                 
                 let watchWallet = {
                     "WALLET_ID": context,

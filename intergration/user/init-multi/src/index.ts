@@ -111,7 +111,7 @@ const start_keepkey_controller = async function(){
 }
 
 
-const test_service = async function () {
+const test_service = async function (this: any) {
     let tag = TAG + " | test_service | "
     try {
         console.log(tag,' CHECKPOINT 1');
@@ -320,7 +320,13 @@ const test_service = async function () {
         let successSoftware = await app.pairWallet(walletSoftware)
         log.info(tag,"successSoftware: ",successSoftware)
         assert(successSoftware)
-
+        
+        //count pubkeys from software
+        let pubkeysAll = app.pubkeys
+        log.info(tag,"pubkeysAll: ",pubkeysAll.length)
+        let pubkeysSoftware = pubkeysAll.filter((e:any) => e.context === "0xC3aFFff54122658b89C31183CeC4F15514F34624.wallet")
+        log.info(tag,"pubkeysSoftware: ",pubkeysSoftware.length)
+        assert(pubkeysSoftware.length > 3)
         //verify all are paired
 
         //User
