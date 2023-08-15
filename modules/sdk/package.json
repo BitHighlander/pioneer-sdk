@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-sdk/sdk",
-  "version": "1.1.151",
+  "version": "1.1.157",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -22,11 +22,11 @@
   "dependencies": {
     "@keepkey/keepkey-sdk": "^0.2.25",
     "@pioneer-platform/loggerdog": "^8.1.27",
-    "@pioneer-platform/pioneer-client": "9.0.9",
-    "@pioneer-platform/pioneer-coins": "8.1.72",
-    "@pioneer-platform/pioneer-events": "8.1.49",
-    "@pioneer-platform/pioneer-invoke": "8.1.43",
-    "@pioneer-sdk/tx-builder": "1.0.18",
+    "@pioneer-platform/pioneer-client": "^9.0.18",
+    "@pioneer-platform/pioneer-coins": "^8.1.72",
+    "@pioneer-platform/pioneer-events": "^8.1.49",
+    "@pioneer-platform/pioneer-invoke": "^8.1.43",
+    "@pioneer-sdk/tx-builder": "^1.0.18",
     "rango-sdk": "^0.1.30",
     "stable": "^0.1.8",
     "typescript": "4.6.4"

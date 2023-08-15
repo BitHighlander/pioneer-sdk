@@ -88,7 +88,7 @@ export class SDK {
     public isPaired: boolean;
     public isConnected: boolean;
     public context: string;
-    public init: (wallet:any) => Promise<void>;
+    public init: () => Promise<any>;
     public refresh: () => Promise<any>;
     public pairWallet: (wallet: any) => Promise<any>;
     // public setWalletContext: (context: string) => Promise<any>;
@@ -211,52 +211,17 @@ export class SDK {
         this.ibcChannels = []
         this.paymentStreams = []
         this.nfts = []
-        this.init = async function (wallet?:any) {
+        // @ts-ignore
+        this.init = async function () {
             let tag = TAG + " | init | "
             try {
                 if(!this.username) throw Error("username required!")
                 if(!this.queryKey) throw Error("queryKey required!")
                 if(!this.wss) throw Error("wss required!")
 
-                //wallet
-                if(wallet) {
-                    let isNative = await wallet?._isNative
-                    let isKeepKey = await wallet?._isKeepKey
-                    let isMetaMask = await wallet?._isMetaMask
-                    if(isNative) wallet.type = 'native'
-                    if(isKeepKey) wallet.type = 'keepkey'
-                    if(isMetaMask) wallet.type = 'metamask'
-                    if(!isNative && !isKeepKey && !isMetaMask) {
-                        log.debug(tag,"wallet: ",wallet)
-                        throw Error("can not init: Unhandled Wallet type!")
-                    }
-                    this.isConnected = true
-                    let context = await this.getContextStringForWallet(wallet);
-                    if (!this.wallets.some(w => w.context === context)) {
-                        let walletInfo: any = {
-                            context: context,
-                            type: wallet.type,
-                            icon: WALLET_ICONS[wallet.type],
-                            status: 'connected',
-                            wallet
-                        };
-                        this.wallets.push(walletInfo);
-                    }
-                    await this.setContext(wallet)
-                    let pubkeysFromWallet = await this.getPubkeys(wallet);
-                    pubkeysFromWallet = pubkeysFromWallet.pubkeys
-                    log.info(tag,"pubkeysFromWallet: ",pubkeysFromWallet)
-                    pubkeysFromWallet.forEach((pubkey: any) => {
-                        if (!this.pubkeys.some((existingPubkey: any) => existingPubkey.pubkey === pubkey.pubkey)) {
-                            this.pubkeys.push(pubkey);
-                        }
-                    });
-                }
-
                 let PioneerClient = new Pioneer(config.spec,config)
                 this.pioneer = await PioneerClient.init()
                 if(!this.pioneer)throw Error("Fialed to init pioneer server!")
-
                 //rango
                 this.rango = new RangoClient(this.rangoApiKey)
 
@@ -265,16 +230,6 @@ export class SDK {
                 log.debug(tag,"TxBuilder.TxBuilder config: ",config)
                 this.txBuilder = new TxBuilder.TxBuilder(this.pioneer, config)
                 log.debug(tag,"txBuilder: ",this.txBuilder)
-
-                // //init invoker
-                // let configInvoke = {
-                //     queryKey:this.queryKey,
-                //     username:this.username,
-                //     spec:this.spec
-                // }
-                // //get config
-                // this.invoke = new Invoke(this.spec,configInvoke)
-                // await  this.invoke.init()
 
                 //get health from server
                 let health = await this.pioneer.Health()
@@ -292,112 +247,47 @@ export class SDK {
                 //get user info
                 let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
-                log.debug(tag,"1 userInfo: ",userInfo)
-                this.user = userInfo
+                log.info(tag,"1 userInfo: ",userInfo)
                 
-                if(userInfo && userInfo.pubkeys){
-                    log.debug(tag,"Validating pubkeys!: ",userInfo)
-                    //verify 1 path for each blockchain enabled
-                    let pubkeyChains:any = []
-                    for(let i = 0; i < userInfo.pubkeys.length; i++) {
-                        let pubkey = userInfo.pubkeys[i]
-                        if (this.blockchains.indexOf(pubkey.blockchain) >= 0) {
-                            pubkeyChains.push(pubkey.blockchain)
-                            this.pubkeys.push(pubkey)
-                        }
-                    }
-                    //unique
-                    pubkeyChains = [ ...new Set(pubkeyChains)]
-                    log.debug(tag,"pubkeyChains: ",pubkeyChains)
-                    log.debug(tag,"pubkeyChains: ",pubkeyChains.length)
-                    log.debug(tag,"blockchains: ",this.blockchains.length)
-                    log.debug(tag,"blockchains: ",this.blockchains)
-                    //get missing
-                    let missingBlockchains = pubkeyChains
-                        .filter((x: any) => !this.blockchains.includes(x))
-                        .concat(this.blockchains.filter((x: any) => !pubkeyChains.includes(x)));
-                    log.debug(tag,"missingBlockchains: ",missingBlockchains)
-                    //register missing
-                    if(missingBlockchains && missingBlockchains.length > 0){
-                        if(wallet){
-                            log.debug(tag,"Detected Wallet out of sync with server! syncing")
-                            let resultPair = await this.pairWallet(wallet)
-                            log.debug (tag,"resultPair: ",resultPair)
-                            //
-                            if(resultPair.data.context)this.context = resultPair.data.context
-                            if(resultPair.data.balance)this.balances = resultPair.data.balance
-                            if(resultPair.data.isSynced)this.isSynced = resultPair.data.isSynced
-                            if(resultPair.data.pubkeys)this.pubkeys = resultPair.data.pubkeys
-                        } else {
-                            log.error("Missing pubkey info for blockchain! and wallet not paired! unable to sync")
-                        }
-                    } else {
-                        log.debug(tag,"All pubkeys found!")
-                    }
-                                    
-                    if(userInfo.balances) {
-                        log.debug(tag,"Balances found! balances: ",userInfo.balances)
-                        log.debug(tag,"Balances found! balances: ",userInfo.balances.length)
-                        this.balances = userInfo.balances
-                        this.nfts = userInfo.nfts
-                    }
+                if(userInfo){
+                    if(userInfo.isSynced)this.isSynced = userInfo.isSynced
+                    if(userInfo.wallets) this.pubkeys = userInfo.wallets
+                    if(userInfo.pubkeys) this.pubkeys = userInfo.pubkeys
                     if(userInfo.context) this.context = userInfo.context
+                    if(userInfo.balances) this.balances = userInfo.balances
+                    if(userInfo.nfts) this.nfts = userInfo.nfts
                 }
 
                 if(!userInfo || userInfo.error) {
                     //no wallets paired
-                    log.debug(tag, "user not registered! info: ",userInfo)
-                    if(wallet){
-                        let result = await this.pairWallet(wallet)
-                        //
-                        if(result.data.context)this.context = result.data.context
-                        if(result.data.balances)this.balances = result.data.balances
-                        if(result.data.isSynced)this.isSynced = result.data.isSynced
-                        if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
-                    } else {
-                        log.debug("no wallet found, and no user found, registering empty user!")
-                        let register = {
-                            username:this.username,
-                            blockchains:this.blockchains,
-                            publicAddress:'none',
+                    log.info(tag, "user not registered! info: ",userInfo)
+                    log.info("no wallet found, and no user found, registering empty user!")
+                    let register = {
+                        username:this.username,
+                        blockchains:this.blockchains,
+                        publicAddress:'none',
+                        context:'none',
+                        walletDescription:{
                             context:'none',
-                            walletDescription:{
-                                context:'none',
-                                type:'none'
-                            },
-                            data:{
-                                pubkeys:[]
-                            },
-                            queryKey:this.queryKey,
-                            auth:'lol',
-                            provider:'lol'
-                        }
-                        log.debug(tag,"register payload: ",register)
-                        let result = await this.pioneer.Register(register)
-                        log.debug(tag,"register result: ",result.data)
-
-                        //context
-                        if(result.data.context)this.balances = result.data.context
-                        if(result.data.balances)this.balances = result.data.balances
-                        if(result.data.isSynced)this.isSynced = result.data.isSynced
-                        if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
+                            type:'none'
+                        },
+                        data:{
+                            pubkeys:[]
+                        },
+                        queryKey:this.queryKey,
+                        auth:'lol',
+                        provider:'lol'
                     }
-                }
-                //if no context
-                if(!this.context) {
-                    if(this.wallets[0].context) {
-                        this.context = this.wallets[0].context
-                    } else {
-                        log.info(tag,'not wallets paired!')
-                    }
-                }
-                
-                //TODO validate pubkey is from context, they should always sync
-                if(!this.pubkeyContext){
-                    log.info(tag,"setting pubkey context: ",this.pubkeys[0])
-                    if(this.pubkeys[0])this.pubkeyContext = this.pubkeys[0]
-                }
+                    log.debug(tag,"register payload: ",register)
+                    let result = await this.pioneer.Register(register)
+                    log.info(tag,"register result: ",result.data)
+                    //context
+                    if(result.data.context)this.balances = result.data.context
+                    if(result.data.balances)this.balances = result.data.balances
+                    if(result.data.isSynced)this.isSynced = result.data.isSynced
+                    if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
 
+                }
                 //done registering, now get the user
                 //this.refresh()
                 if(!this.pioneer) throw Error("Failed to init pioneer server!")
@@ -410,6 +300,17 @@ export class SDK {
             let tag = TAG + " | getContextStringForWallet | "
             try{
                 if(!wallet) throw Error("wallet required to get context string!")
+                //walletType
+                let isNative = await wallet?._isNative
+                let isKeepKey = await wallet?._isKeepKey
+                let isMetaMask = await wallet?._isMetaMask
+                if(isNative) wallet.type = 'native'
+                if(isKeepKey) wallet.type = 'keepkey'
+                if(isMetaMask) wallet.type = 'metamask'
+                if(!isNative && !isKeepKey && !isMetaMask) {
+                    log.debug(tag,"wallet: ",wallet)
+                    throw Error("can not init: Unhandled Wallet type!")
+                }
                 //get wallet context
                 log.info(tag,"wallet type: ",wallet.type)
                 //log.info(tag,"wallet: ",wallet)
@@ -469,6 +370,9 @@ export class SDK {
                         this.pubkeyContext = pubkey
                         log.info(tag,"pubkeyContext: ",this.pubkeyContext)
                     } else {
+                        log.info(tag,"pubkeys: ",this.pubkeys)
+                        log.info(tag,"pubkeysForContext: ",pubkeysForContext)
+
                         throw Error("unable to find ("+blockchain.name+") pubkey for context! "+context)
                     }
                     return {success:true}
@@ -513,57 +417,20 @@ export class SDK {
                     };
                     this.wallets.push(walletInfo);
                 }
-                await this.setContext(wallet)
-                this.isConnected = true
-                log.debug(tag,"isNative: ",isNative)
-                log.debug(tag,"isKeepKey: ",isKeepKey)
-                log.debug(tag,"isMetaMask: ",isMetaMask)
+                log.info(tag,"this.wallets: ",this.wallets)
                 
-                //TODO error if server is offline
-                // log.debug(tag,"wallet: ",wallet)
                 let pubkeys = await this.getPubkeys(wallet)
-                log.info(tag,"pubkeys: ",pubkeys)
-                log.info(tag,"pubkeys: ",pubkeys.pubkeys)
-                log.info(tag,"pubkeys: ",pubkeys.pubkeys.length)
                 if(!pubkeys) throw Error("Failed to get Pubkeys!")
                 if(!pubkeys.pubkeys) throw Error("Failed to get Pubkeys!")
                 log.info("Pubkeys BEFORE pairing: ",this.pubkeys)
                 for(let i = 0; i < pubkeys.pubkeys.length; i++){
                     let pubkey = pubkeys.pubkeys[i]
-                    log.info(tag,"pubkey: ",pubkey)
-                    log.info(tag,"pubkey.pubkey: ",pubkey.pubkey)
-                    log.info(tag,"pubkey.context: ",pubkey.context)
                     this.pubkeys.push(pubkey)
                 }
                 log.info("Pubkeys AFTER pairing: ",this.pubkeys)
 
-                // pubkeys.pubkeys.forEach((pubkey: any) => {
-                //     if (!this.pubkeys.some((existingPubkey: any) => existingPubkey.pubkey === pubkey.pubkey)) {
-                //         this.pubkeys.push(pubkey);
-                //     }
-                // });
-                // pubkeys = pubkeys.pubkeys
-                log.debug(tag,"pubkeys: ",pubkeys)
-                //if(pubkeys.pubkeys.length < this.blockchains.length) throw Error("Wallet failed to init for a blockchain!")
-                //log.debug(tag,"this.pubkeys: ",this.pubkeys)
-                // //make sure pubkeys got keys for all enabled assets
-                // //unique
-                // pubkeys = [ ...new Set(pubkeys)]
-                // log.debug(tag,"pubkeyChains: ",pubkeys)
-                // log.debug(tag,"pubkeyChains: ",pubkeys.length)
-                // log.debug(tag,"blockchains: ",this.blockchains.length)
-                // log.debug(tag,"blockchains: ",this.blockchains)
-                // //get missing
-                // let missingBlockchains = pubkeys
-                //     .filter((x: any) => !this.blockchains.includes(x))
-                //     .concat(this.blockchains.filter((x: any) => !pubkeys.includes(x)));
-                // log.debug(tag,"missingBlockchains: ",missingBlockchains)
-                //
-                // if(missingBlockchains.length > 0) {
-                //     log.error(tag,"missingBlockchains: ",missingBlockchains)
-                //     throw Error("Failed to generate pubkeys!")
-                // }
-                // if(pubkeys.pubkeys) this.pubkeys = pubkeys.pubkeys
+                await this.setContext(wallet)
+                this.isConnected = true
 
                 //register
                 if(!this.username) throw Error("username not set!")
@@ -585,23 +452,9 @@ export class SDK {
                 }
                 log.debug(tag,"register payload: ",register)
                 let result = await this.pioneer.Register(register)
-                log.debug(tag,"register result: ",result)
+                log.info(tag,"register result: ",result)
                 if(result.data.balances)this.balances = result.data.balances
-                //if(result.data.wallets)this.wallets = result.data.wallets
-                if(result.data.isSynced)this.isSynced = result.data.isSynced
-                if(result.data.pubkeys)this.pubkeys = result.data.pubkeys
-                //get user
-                // this.updateContext()
-                //TODO verify user?
-
-                //if wallet not registered OR any missing keys for current blockchain
-                // if(this.balances.length === 0 || true){
-                //
-                //
-                // }
-                
-
-
+                if(result.data.nfts)this.nfts = result.data.nfts
 
                 return result
             } catch (e) {
@@ -644,23 +497,6 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
-        // this.setWalletContext = async function (context:string) {
-        //     let tag = TAG + " | setWalletContext | "
-        //     try {
-        //         if(context && this.context && this.context !== context){
-        //             let result = await this.pioneer.SetContext({context})
-        //             log.debug(tag,"result: ",result)
-        //             //if success
-        //             this.context = context
-        //             this.wallet 
-        //             return result.data
-        //         }else{
-        //             return {success:false,error:"already context="+context}
-        //         }
-        //     } catch (e) {
-        //         log.error(tag, "e: ", e)
-        //     }
-        // }
         this.setPubkeyContext = async function (pubkeyObj) {
             const tag = TAG + " | setPubkeyContext | ";
             try {
@@ -698,13 +534,19 @@ export class SDK {
                 log.error(tag, "e: ", e)
             }
         }
-        this.setAssetContext = async function (asset:string) {
+        this.setAssetContext = async function (asset:any) {
             let tag = TAG + " | setAssetContext | "
             try {
                 if(asset && this.assetContext && this.assetContext !== asset){
                     let result = await this.pioneer.SetAssetContext({asset})
                     log.debug(tag,"result: ",result.data)
                     if(result && result.data && result.data.success){
+                        log.info(tag,"settingAssetContext: ",asset)
+                        //set blockchainContext to assets blockchain!
+                        if(asset?.blockchainCaip){
+                            let blockchain = await this.pioneer.BlockchainByCaip({caip:asset?.blockchainCaip})
+                            if(blockchain)await this.setBlockchainContext(blockchain)
+                        }
                         //if success
                         this.assetContext = asset
                         return result.data
@@ -1465,68 +1307,7 @@ export class SDK {
                 let output
                 //filter by address
                 let pubkeys = this.pubkeys.filter((e:any) => e.symbol === asset)
-                
-                let selected
-                let selectedBalance = 0
-                if(sync && !this.pioneer){
-                    throw Error("Pioneer not initialized!")
-                }
-                
-                if(pubkeys.length === 1){
-                    selected = pubkeys[0]
-                    //
-                    if(sync && this.pioneer){
-                        let syncResult = await this.pioneer.SyncPubkeys({network:selected.network})
-                        syncResult = syncResult.data
-                        log.debug(tag,"syncResult:",syncResult)
-                        selected = syncResult[0]
-                    }
-                } else if(pubkeys.length > 1) {
-                    //check balances
-                    selected = pubkeys[0]
-                    //
-                    if(sync && this.pioneer){
-                        let syncResult = await this.pioneer.SyncPubkeys({network:selected.network})
-                        syncResult = syncResult.data
-                        log.debug(tag,"syncResult:",syncResult)
-                        selected = syncResult[0]
-                    }
-                    //TODO sync all, and use largest balance?
-                    // for(let i = 0; i < pubkeys.length; i++){
-                    //     let pubkey = pubkeys[i]
-                    //     let balance = this.balances.filter((e:any) => e.pubkey === pubkey.pubkey)[0]
-                    //
-                    //     //get balance on pubkey
-                    //     log.debug(tag,"balance: ",balance)
-                    //     log.debug(tag,"balance: ",balance.balance)
-                    //     if(balance.balance > selectedBalance){
-                    //         selectedBalance = balance.balance
-                    //         selected = pubkey
-                    //     }
-                    // }
-                }
-                output = selected
-                //sync
-                if(sync){
-                    for(let i = 0; i < output.balances.length; i++){
-                        let balance = output.balances[i]
-                        let found = false;
-                        // Check if the balance.name is already in balances
-                        for (let j = 0; j < this.balances.length; j++) {
-                            if (this.balances[j].name === balance.name) {
-                                found = true;
-                                break;
-                            }
-                        }
-
-                        // If not found in balances, add it
-                        if (!found) {
-                            this.balances.push(balance);
-                        }
-                    }
-                }
-
-                return output
+                return pubkeys
             } catch (e) {
                 log.error(tag, "e: ", e)
                 // @ts-ignore

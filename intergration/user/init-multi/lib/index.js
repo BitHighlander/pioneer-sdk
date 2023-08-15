@@ -135,7 +135,7 @@ const test_service = async function () {
         log.info(tag, "queryKey: ", queryKey);
         // const queryKey = "key:66fefdd6-7ea9-48cf-8e69-fc74afb9c45412"
         assert(queryKey);
-        const username = "user:66fefdd6-7ea9-48cf-8e69-fc74afb9c45412";
+        const username = "user:66fefdd6-7ea9-48cf-8e69-fc74afb9c45412" + Math.random();
         assert(username);
         //add custom path
         let paths = [];
@@ -151,6 +151,20 @@ const test_service = async function () {
         let app = new SDK.SDK(spec, config);
         log.debug(tag, "app: ", app);
         console.log(tag, ' CHECKPOINT 3');
+        let resultInit = await app.init();
+        log.info(tag, "resultInit: ", resultInit);
+        // log.info(tag,"pubkeys: ",app.pubkeys)
+        // log.info(tag,"balances: ",app.balances)
+        // log.info(tag,"nfts: ",app.nfts)
+        log.info(tag, "wallets: ", app.wallets);
+        log.info(tag, "pubkeys: ", app.pubkeys.length);
+        log.info(tag, "balances: ", app.balances.length);
+        log.info(tag, "nfts: ", app.nfts.length);
+        log.info(tag, "context: ", app.context);
+        // log.info(tag,"assetContext: ",app.assetContext)
+        // log.info(tag,"blo: ",app.assetContext)
+        // log.info(tag,"assetContext: ",app.assetContext)
+        //throw Error('stop')
         //forget
         // log.info(tag,"app.pioneer: ",app.pioneer.instance)
         // let resultForget = await app.pioneer.instance.Forget()
@@ -169,49 +183,50 @@ const test_service = async function () {
         //Fucking race conditon
         await sleep(1000);
         //get pubkeys
-        log.info(tag, "app: ", app);
-        let pubkeysMetaMask = await app.getPubkeys(walletMetaMask);
-        assert(pubkeysMetaMask);
-        assert(pubkeysMetaMask.publicAddress);
-        assert(pubkeysMetaMask.context);
-        assert(pubkeysMetaMask.wallet);
-        assert.strictEqual(pubkeysMetaMask.pubkeys.length, 5);
-        log.info(tag, "pubkeysMetaMask: ", pubkeysMetaMask.pubkeys.length);
-        //validate pubkeys
-        let pubkeysNative = await app.getPubkeys(walletSoftware);
-        assert(pubkeysNative);
-        assert(pubkeysNative.publicAddress);
-        assert(pubkeysNative.context);
-        assert(pubkeysNative.wallet);
-        assert.strictEqual(pubkeysNative.pubkeys.length, 9);
-        log.info(tag, "pubkeysNative: ", pubkeysNative.pubkeys.length);
-        let pubkeysKeepKey = await app.getPubkeys(walletKeepKey);
-        assert(pubkeysKeepKey);
-        assert(pubkeysKeepKey.publicAddress);
-        assert(pubkeysKeepKey.context);
-        assert(pubkeysKeepKey.wallet);
-        assert.strictEqual(pubkeysKeepKey.pubkeys.length, 9);
-        log.info(tag, "pubkeysKeepKey: ", pubkeysKeepKey.pubkeys.length);
-        //init with metamask
-        // let result = await app.init(walletMetaMask)
-        // log.info(tag,"result: ",result)
-        // assert(result)
-        //init with software
-        // let result = await app.init(walletSoftware)
-        // log.info(tag,"result: ",result)
-        // assert(result)
-        //init with keepkey
-        let result = await app.init(walletKeepKey);
-        // log.info(tag,"result: ",result)
-        assert(result);
-        assert(app.wallet);
-        assert(app.context);
-        log.info(tag, "app.context: ", app.context);
-        // assert(result.User)
-        //pubkey context
-        let pubkeyContextPre = await app.pubkeyContext;
-        assert(pubkeyContextPre);
-        log.info("pubkeyContextPre: ", pubkeyContextPre);
+        // log.info(tag,"app: ",app)
+        // let pubkeysMetaMask = await app.getPubkeys(walletMetaMask)
+        // assert(pubkeysMetaMask)
+        // assert(pubkeysMetaMask.publicAddress)
+        // assert(pubkeysMetaMask.context)
+        // assert(pubkeysMetaMask.wallet)
+        // assert.strictEqual(pubkeysMetaMask.pubkeys.length, 5)
+        // log.info(tag,"pubkeysMetaMask: ",pubkeysMetaMask.pubkeys.length)
+        //
+        // //validate pubkeys
+        // let pubkeysNative = await app.getPubkeys(walletSoftware)
+        // assert(pubkeysNative)
+        // assert(pubkeysNative.publicAddress)
+        // assert(pubkeysNative.context)
+        // assert(pubkeysNative.wallet)
+        // assert.strictEqual(pubkeysNative.pubkeys.length, 9)
+        // log.info(tag,"pubkeysNative: ",pubkeysNative.pubkeys.length)
+        //
+        // let pubkeysKeepKey = await app.getPubkeys(walletKeepKey)
+        // assert(pubkeysKeepKey)
+        // assert(pubkeysKeepKey.publicAddress)
+        // assert(pubkeysKeepKey.context)
+        // assert(pubkeysKeepKey.wallet)
+        // assert.strictEqual(pubkeysKeepKey.pubkeys.length, 9)
+        // log.info(tag,"pubkeysKeepKey: ",pubkeysKeepKey.pubkeys.length)
+        let contextMetaMask = await app.getContextStringForWallet(walletMetaMask);
+        let successMetaMask = await app.pairWallet(walletMetaMask);
+        assert(successMetaMask);
+        let pubkeysMetamask = app.pubkeys.filter((e) => e.context === contextMetaMask);
+        log.info(tag, "pubkeysMetamask: ", pubkeysMetamask.length);
+        assert(pubkeysMetamask.length > 4);
+        //pair softwareclea
+        let contextSoftware = await app.getContextStringForWallet(walletSoftware);
+        let successSoftware = await app.pairWallet(walletSoftware);
+        log.info(tag, "successSoftware: ", successSoftware);
+        assert(successSoftware);
+        let pubkeysSoftware = app.pubkeys.filter((e) => e.context === contextSoftware);
+        log.info(tag, "pubkeysSoftware: ", pubkeysSoftware.length);
+        assert(pubkeysSoftware.length > 4);
+        //pair softwareclea
+        let contextKeepKey = await app.getContextStringForWallet(walletKeepKey);
+        let successKeepKey = await app.pairWallet(walletKeepKey);
+        log.info(tag, "successKeepKey: ", successKeepKey);
+        assert(successKeepKey);
         //get balances for keepkey
         //balances
         log.info("app.balances: ", app.balances);
@@ -221,42 +236,6 @@ const test_service = async function () {
         assert(balance1);
         assert(balance1[0]);
         assert(balance1[0].balance);
-        let user0 = await result.User();
-        user0 = user0.data;
-        // log.info(tag,"user0 user: ",user0)
-        log.info(tag, "user0 isFox: ", user0.isFox);
-        log.info(tag, "user0 isPioneer: ", user0.isPioneer);
-        log.info(tag, "user0 wallets: ", user0.wallets);
-        log.info(tag, "user0 walletDescriptions: ", user0.walletDescriptions);
-        assert(user0);
-        assert(user0.wallets);
-        assert(user0.walletDescriptions);
-        //get descripton
-        let descriptionKeepKey = user0.walletDescriptions.filter((e) => e.type === "keepkey")[0];
-        assert(descriptionKeepKey);
-        // let descriptionMetamask = user0.walletDescriptions.filter((e:any) => e.type === "metamask")[0]
-        // assert(descriptionMetamask)
-        //verify isFox
-        // assert(user0.isFox)
-        //pair keepkey
-        // let successKeepKey = await app.pairWallet(walletKeepKey)
-        // log.info(tag,"successKeepKey: ",successKeepKey)
-        // assert(successKeepKey)
-        // app.refresh()
-        // log.info(tag,"checkpoint post refresh: ")
-        // let user1 = await result.User()
-        // user1 = user1.data
-        // log.info(tag,"user1 isFox: ",user1.isFox)
-        // log.info(tag,"user1 isPioneer: ",user1.isPioneer)
-        // log.info(tag,"user1 wallets: ",user1.wallets)
-        // log.info(tag,"user1 walletDescriptions: ",user1.walletDescriptions)
-        // assert(user1.wallets.length, 2)
-        // assert(user1.walletDescriptions.length, 2)
-        let successMetaMask = await app.pairWallet(walletMetaMask);
-        log.info(tag, "successMetaMask: ", successMetaMask);
-        assert(successMetaMask);
-        app.refresh();
-        log.info(tag, "checkpoint post refresh: ");
         //context should match first account
         let context = await app.context;
         log.info(tag, "context: ", context);
@@ -267,27 +246,23 @@ const test_service = async function () {
         let allWallets = await app.wallets;
         log.info(tag, "allWallets: ", allWallets);
         // assert(allWallets.length, metamask_accounts.length + 1) //plus keepkey
-        let user1 = await result.User();
-        user1 = user1.data;
-        log.info(tag, "user1 isFox: ", user1.isFox);
-        log.info(tag, "user1 isPioneer: ", user1.isPioneer);
-        log.info(tag, "user1 wallets: ", user1.wallets);
-        log.info(tag, "user1 walletDescriptions: ", user1.walletDescriptions);
-        log.info(tag, "user1 balances: ", user1.balances);
-        log.info(tag, "user1 balances: ", user1.balances.length);
-        log.info(tag, "user1 wallets: ", user1.wallets.length);
-        log.info(tag, "user1 walletDescriptions: ", user1.walletDescriptions.length);
+        log.info(tag, "user1 isFox: ", app.isFox);
+        log.info(tag, "user1 isPioneer: ", app.isPioneer);
+        log.info(tag, "user1 wallets: ", app.wallets);
+        log.info(tag, "user1 balances: ", app.balances);
+        log.info(tag, "user1 balances: ", app.balances.length);
+        log.info(tag, "user1 wallets: ", app.wallets.length);
         //assert.strictEqual(user1.wallets.length, 2)
         //assert.strictEqual(user1.walletDescriptions.length, 2)
-        for (let i = 0; i < user1.pubkeys.length; i++) {
-            let pubkey = user1.pubkeys[i];
-            log.info(tag, "pubkey: ", pubkey);
+        for (let i = 0; i < app.pubkeys.length; i++) {
+            let pubkey = app.pubkeys[i];
+            //log.info(tag,"pubkey: ",pubkey)
             assert(pubkey);
             assert(pubkey.context);
         }
-        for (let i = 0; i < user1.balances.length; i++) {
-            let balance = user1.balances[i];
-            log.info(tag, "balance: ", balance);
+        for (let i = 0; i < app.balances.length; i++) {
+            let balance = app.balances[i];
+            //log.info(tag,"balance: ",balance)
             assert(balance);
             assert(balance.symbol);
             assert(balance.context);
@@ -297,34 +272,23 @@ const test_service = async function () {
         // assert(user1)
         //Should be Pioneer now
         // assert(user1.isPioneer)
-        //pair softwareclea
-        let successSoftware = await app.pairWallet(walletSoftware);
-        log.info(tag, "successSoftware: ", successSoftware);
-        assert(successSoftware);
         //count pubkeys from software
-        let pubkeysAll = app.pubkeys;
-        log.info(tag, "pubkeysAll: ", pubkeysAll.length);
-        let pubkeysSoftware = pubkeysAll.filter((e) => e.context === "0xC3aFFff54122658b89C31183CeC4F15514F34624.wallet");
-        log.info(tag, "pubkeysSoftware: ", pubkeysSoftware.length);
-        assert(pubkeysSoftware.length > 3);
+        // let pubkeysAll = app.pubkeys
+        // log.info(tag,"pubkeysAll: ",pubkeysAll.length)
+        // let pubkeysSoftware = pubkeysAll.filter((e:any) => e.context === "0xC3aFFff54122658b89C31183CeC4F15514F34624.wallet")
+        // log.info(tag,"pubkeysSoftware: ",pubkeysSoftware.length)
+        // assert(pubkeysSoftware.length > 3)
         //verify all are paired
-        //User
-        let user2 = await result.User();
-        user2 = user2.data;
-        // log.info(tag,"user2: ",user2)
-        log.info(tag, "user2 wallets: ", user2.wallets);
-        log.info(tag, "user2 walletDescriptions: ", user2.walletDescriptions);
-        //walletDescriptions
         //
-        let metamaskWalletDescription = user2.walletDescriptions.filter((e) => e.type === "metamask");
-        assert(metamaskWalletDescription.length, 1);
-        log.info(tag, "metamaskWalletDescription: ", metamaskWalletDescription);
-        let keepkeyWalletDescription = user2.walletDescriptions.filter((e) => e.type === "keepkey");
-        assert(keepkeyWalletDescription.length, 1);
-        log.info(tag, "keepkeyWalletDescription: ", keepkeyWalletDescription);
-        let nativeWalletDescription = user2.walletDescriptions.filter((e) => e.type === "native");
-        assert(nativeWalletDescription.length, 1);
-        log.info(tag, "nativeWalletDescription: ", nativeWalletDescription);
+        let metamaskWallet = app.wallets.filter((e) => e.type === "metamask");
+        assert(metamaskWallet.length === 1);
+        //log.info(tag,"metamaskWalletDescription: ",metamaskWallet)
+        let keepkeyWallet = app.wallets.filter((e) => e.type === "keepkey");
+        assert(keepkeyWallet.length === 1);
+        //log.info(tag,"keepkeyWalletDescription: ",keepkeyWallet)
+        let nativeWallet = app.wallets.filter((e) => e.type === "native");
+        assert(nativeWallet.length === 1);
+        //log.info(tag,"nativeWallet: ",nativeWallet)
         // app.refresh()
         // log.info(tag,"checkpoint post refresh: ")
         //
@@ -364,16 +328,16 @@ const test_service = async function () {
         // assert(balance[0])
         // assert(balance[0].balance)
         //sync
-        log.info("app.pubkeys: ", app.pubkeys);
+        log.info("app.pubkeys: ", app.pubkeys.length);
         let pubkey = app.pubkeys.filter((e) => e.symbol === "ETH");
-        log.info("pubkey: ", pubkey);
-        log.info("app.pubkeys: ", app.pubkeys);
+        // log.info("pubkey: ",pubkey)
+        log.info("app.pubkeys: ", app.pubkeys.length);
         assert(pubkey[0]);
-        //sync pubkey
-        let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true);
-        log.info("pubkeySynced: ", pubkeySynced);
-        assert(pubkeySynced);
-        assert(pubkeySynced.balances);
+        // //sync pubkey
+        // let pubkeySynced = await app.getPubkey(pubkey[0].symbol, true)
+        // log.info("pubkeySynced: ",pubkeySynced)
+        // assert(pubkeySynced)
+        // assert(pubkeySynced.balances)
         //balances
         let balance = app.balances.filter((e) => e.symbol === ASSET);
         log.info("balance: ", balance);
