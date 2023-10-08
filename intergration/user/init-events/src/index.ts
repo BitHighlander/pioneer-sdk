@@ -114,6 +114,23 @@ const test_service = async function () {
         let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
+        log.info(tag,"app: ",app)
+        //get current contet
+        assert(app.pubkeyContext)
+        log.info(tag,"app.pubkeyContext: ",app.pubkeyContext)
+        assert(app.assetContext)
+        log.info(tag,"app.assetContext: ",app.assetContext)
+        assert(app.blockchainContext)
+        log.info(tag,"app.blockchainContext: ",app.blockchainContext)
+
+        //get available assets for user
+
+        //listen for asset change event
+
+        //change asset context
+
+        //verify asset change occured, and blockchain context changed as well
+
         //verify a pubkey for every chain
         
         //refresh

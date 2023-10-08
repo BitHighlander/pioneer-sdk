@@ -1,6 +1,6 @@
 {
   "name": "@pioneer-sdk/sdk",
-  "version": "1.1.157",
+  "version": "1.1.160",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {
@@ -26,6 +26,9 @@
     "@pioneer-platform/pioneer-coins": "^8.1.72",
     "@pioneer-platform/pioneer-events": "^8.1.49",
     "@pioneer-platform/pioneer-invoke": "^8.1.43",
+    "@pioneer-platform/swapkit-core": "^3.0.2",
+    "@pioneer-platform/toolbox-cosmos": "^3.0.1",
+    "@pioneer-platform/toolbox-evm": "^3.0.1",
     "@pioneer-sdk/tx-builder": "^1.0.18",
     "rango-sdk": "^0.1.30",
     "stable": "^0.1.8",

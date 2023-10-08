@@ -105,10 +105,10 @@ const test_service = async function () {
 
         //if force new user
         //const queryKey = "sdk:pair-keepkey:"+uuidv4();
-        const queryKey = "sdk:pair-keepkey:test-1234";
+        const queryKey = "sdk:pair-keepkey:test-12345";
         assert(queryKey)
 
-        const username = "sdk:test-user-1234";
+        const username = "sdk:test-user-12345";
         assert(username)
 
         //add custom path

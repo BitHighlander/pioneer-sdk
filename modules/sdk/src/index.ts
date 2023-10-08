@@ -9,6 +9,7 @@
  */
 const TAG = " | Pioneer-sdk | "
 const log = require("@pioneer-platform/loggerdog")()
+import { SwapKitCore } from '@pioneer-platform/swapkit-core';
 let {
     blockchains,
     getPaths,
@@ -247,7 +248,7 @@ export class SDK {
                 //get user info
                 let userInfo = await this.pioneer.User()
                 userInfo = userInfo.data
-                log.info(tag,"1 userInfo: ",userInfo)
+                log.debug(tag,"1 userInfo: ",userInfo)
                 
                 if(userInfo){
                     if(userInfo.isSynced)this.isSynced = userInfo.isSynced
@@ -260,8 +261,8 @@ export class SDK {
 
                 if(!userInfo || userInfo.error) {
                     //no wallets paired
-                    log.info(tag, "user not registered! info: ",userInfo)
-                    log.info("no wallet found, and no user found, registering empty user!")
+                    log.debug(tag, "user not registered! info: ",userInfo)
+                    log.debug("no wallet found, and no user found, registering empty user!")
                     let register = {
                         username:this.username,
                         blockchains:this.blockchains,
@@ -280,7 +281,7 @@ export class SDK {
                     }
                     log.debug(tag,"register payload: ",register)
                     let result = await this.pioneer.Register(register)
-                    log.info(tag,"register result: ",result.data)
+                    log.debug(tag,"register result: ",result.data)
                     //context
                     if(result.data.context)this.balances = result.data.context
                     if(result.data.balances)this.balances = result.data.balances
@@ -312,8 +313,8 @@ export class SDK {
                     throw Error("can not init: Unhandled Wallet type!")
                 }
                 //get wallet context
-                log.info(tag,"wallet type: ",wallet.type)
-                //log.info(tag,"wallet: ",wallet)
+                log.debug(tag,"wallet type: ",wallet.type)
+                //log.debug(tag,"wallet: ",wallet)
                 let ethAddress
                 if(wallet.type === 'metamask') {
                     ethAddress = 'metamask'
@@ -341,9 +342,9 @@ export class SDK {
             let tag = TAG + " | setContext | "
             try{
                 let context = await this.getContextStringForWallet(wallet)
-                log.info(tag,"context: ",context)
+                log.debug(tag,"context: ",context)
                 const isContextExist = this.wallets.some((wallet: any) => wallet.context === context);
-                log.info(tag,"isContextExist: ",isContextExist)
+                log.debug(tag,"isContextExist: ",isContextExist)
                 if(isContextExist){
                     //if success
                     this.context = context
@@ -354,24 +355,24 @@ export class SDK {
                     //pubkey pubkey context
                     let blockchain = this.blockchainContext
                     //get pubkey for blockchain
-                    log.info(tag,"this.pubkeys: ",this.pubkeys)
-                    log.info(tag,"blockchainContext: ",blockchain)
-                    log.info(tag,"blockchain: ",blockchain.name)
-                    log.info(tag,"context: ",context)
+                    log.debug(tag,"this.pubkeys: ",this.pubkeys)
+                    log.debug(tag,"blockchainContext: ",blockchain)
+                    log.debug(tag,"blockchain: ",blockchain.name)
+                    log.debug(tag,"context: ",context)
                     let pubkeysForContext = this.pubkeys.filter((item: { context: string }) => item.context === context);
-                    log.info(tag, "pubkeysForContext: ", pubkeysForContext);
+                    log.debug(tag, "pubkeysForContext: ", pubkeysForContext);
 
                     let pubkey = pubkeysForContext.find(
                         (item: { blockchain: any; context: string }) => item.blockchain === blockchain.name && item.context === context
                     );
-                    log.info(tag, "pubkey: ", pubkey);
+                    log.debug(tag, "pubkey: ", pubkey);
 
                     if(pubkey) {
                         this.pubkeyContext = pubkey
-                        log.info(tag,"pubkeyContext: ",this.pubkeyContext)
+                        log.debug(tag,"pubkeyContext: ",this.pubkeyContext)
                     } else {
-                        log.info(tag,"pubkeys: ",this.pubkeys)
-                        log.info(tag,"pubkeysForContext: ",pubkeysForContext)
+                        log.debug(tag,"pubkeys: ",this.pubkeys)
+                        log.debug(tag,"pubkeysForContext: ",pubkeysForContext)
 
                         throw Error("unable to find ("+blockchain.name+") pubkey for context! "+context)
                     }
@@ -404,9 +405,9 @@ export class SDK {
                     throw Error("can not init: Unhandled Wallet type!")
                 }
                 //add wallet to wallets
-                log.info(tag,"this.wallets: ",this.wallets)
+                log.debug(tag,"this.wallets: ",this.wallets)
                 let context = await this.getContextStringForWallet(wallet);
-                log.info(tag,"context: ",context)
+                log.debug(tag,"context: ",context)
                 if (!this.wallets.some(w => w.context === context)) {
                     let walletInfo: any = {
                         context: context,
@@ -417,17 +418,17 @@ export class SDK {
                     };
                     this.wallets.push(walletInfo);
                 }
-                log.info(tag,"this.wallets: ",this.wallets)
+                log.debug(tag,"this.wallets: ",this.wallets)
                 
                 let pubkeys = await this.getPubkeys(wallet)
                 if(!pubkeys) throw Error("Failed to get Pubkeys!")
                 if(!pubkeys.pubkeys) throw Error("Failed to get Pubkeys!")
-                log.info("Pubkeys BEFORE pairing: ",this.pubkeys)
+                log.debug("Pubkeys BEFORE pairing: ",this.pubkeys)
                 for(let i = 0; i < pubkeys.pubkeys.length; i++){
                     let pubkey = pubkeys.pubkeys[i]
                     this.pubkeys.push(pubkey)
                 }
-                log.info("Pubkeys AFTER pairing: ",this.pubkeys)
+                log.debug("Pubkeys AFTER pairing: ",this.pubkeys)
 
                 await this.setContext(wallet)
                 this.isConnected = true
@@ -452,7 +453,7 @@ export class SDK {
                 }
                 log.debug(tag,"register payload: ",register)
                 let result = await this.pioneer.Register(register)
-                log.info(tag,"register result: ",result)
+                log.debug(tag,"register result: ",result)
                 if(result.data.balances)this.balances = result.data.balances
                 if(result.data.nfts)this.nfts = result.data.nfts
 
@@ -541,7 +542,7 @@ export class SDK {
                     let result = await this.pioneer.SetAssetContext({asset})
                     log.debug(tag,"result: ",result.data)
                     if(result && result.data && result.data.success){
-                        log.info(tag,"settingAssetContext: ",asset)
+                        log.debug(tag,"settingAssetContext: ",asset)
                         //set blockchainContext to assets blockchain!
                         if(asset?.blockchainCaip){
                             let blockchain = await this.pioneer.BlockchainByCaip({caip:asset?.blockchainCaip})
@@ -1182,50 +1183,50 @@ export class SDK {
                 }
 
                 //if metamask
-                if(wallet?._isMetaMask) {
-                    log.debug(tag," metamask wallet detected!")
-                    ethMaster = 'metamask' //metamask won't tell us whats really on path 60'/0'/0'/0/0
-                    let pubkeyEth = {
-                        pubkey: wallet.ethAddress,
-                        blockchain: 'ethereum',
-                        symbol: 'ETH',
-                        asset: 'ethereum',
-                        path: "m/44'/60'/0'",
-                        pathMaster: "m/44'/60'/0'/0/0",
-                        script_type: 'ethereum',
-                        network: 'ethereum',
-                        master: wallet.ethAddress,
-                        type: 'address',
-                        address: wallet.ethAddress,
-                        context: 'metamask.wallet'
-                    }
-                    pubkeys.push(pubkeyEth)
-                    this.pubkeys.push(pubkeyEth)
-                    output.pubkeys = pubkeys
-                    keyedWallet['ETH'] = pubkeyEth
-
-                    //if extra keys
-                    if(wallet?.accounts){
-                        for(let i = 0; i < wallet.accounts.length; i++){
-                            let account = wallet.accounts[i]
-                            let pubkeyEth = {
-                                pubkey: account,
-                                blockchain: 'ethereum',
-                                symbol: 'ETH',
-                                asset: 'ethereum',
-                                path: "m/44'/60'/0'",
-                                pathMaster: "m/44'/60'/0'/0/0",
-                                script_type: 'ethereum',
-                                network: 'ethereum',
-                                master: account,
-                                type: 'address',
-                                address: account,
-                                context: 'metamask.wallet'
-                            }
-                            pubkeys.push(pubkeyEth)
-                        }
-                    }
-                }
+                // if(wallet?._isMetaMask) {
+                //     log.debug(tag," metamask wallet detected!")
+                //     ethMaster = 'metamask' //metamask won't tell us whats really on path 60'/0'/0'/0/0
+                //     let pubkeyEth = {
+                //         pubkey: wallet.ethAddress,
+                //         blockchain: 'ethereum',
+                //         symbol: 'ETH',
+                //         asset: 'ethereum',
+                //         path: "m/44'/60'/0'",
+                //         pathMaster: "m/44'/60'/0'/0/0",
+                //         script_type: 'ethereum',
+                //         network: 'ethereum',
+                //         master: wallet.ethAddress,
+                //         type: 'address',
+                //         address: wallet.ethAddress,
+                //         context: 'metamask.wallet'
+                //     }
+                //     pubkeys.push(pubkeyEth)
+                //     this.pubkeys.push(pubkeyEth)
+                //     output.pubkeys = pubkeys
+                //     keyedWallet['ETH'] = pubkeyEth
+                //
+                //     //if extra keys
+                //     if(wallet?.accounts){
+                //         for(let i = 0; i < wallet.accounts.length; i++){
+                //             let account = wallet.accounts[i]
+                //             let pubkeyEth = {
+                //                 pubkey: account,
+                //                 blockchain: 'ethereum',
+                //                 symbol: 'ETH',
+                //                 asset: 'ethereum',
+                //                 path: "m/44'/60'/0'",
+                //                 pathMaster: "m/44'/60'/0'/0/0",
+                //                 script_type: 'ethereum',
+                //                 network: 'ethereum',
+                //                 master: account,
+                //                 type: 'address',
+                //                 address: account,
+                //                 context: 'metamask.wallet'
+                //             }
+                //             pubkeys.push(pubkeyEth)
+                //         }
+                //     }
+                // }
                 // let features = wallet.features;
                 // log.debug(tag,"vender: ",features)
                 // log.debug(tag,"vender: ",features.deviceId)

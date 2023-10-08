@@ -21,21 +21,24 @@ let SDK = require('@pioneer-sdk/sdk')
 let wait = require('wait-promise');
 let sleep = wait.sleep;
 
-let BLOCKCHAIN = 'ethereum'
-let BLOCKCHAIN_OUTPUT = 'bitcoin'
-let ASSET = 'ETH'
+let BLOCKCHAIN = 'bitcoin'
+let BLOCKCHAIN_OUTPUT = 'ethereum'
+let ASSET = 'BTC'
 let MIN_BALANCE = process.env['MIN_BALANCE_LTC'] || "0.004"
-// let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "MAX"
-let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.01"
+let TEST_AMOUNT = process.env['TEST_AMOUNT'] || "0.004"
 let spec = process.env['URL_PIONEER_SPEC'] || 'https://pioneers.dev/spec/swagger.json'
 let wss = process.env['URL_PIONEER_SOCKET'] || 'wss://pioneers.dev'
+let FAUCET_BTC_ADDRESS = process.env['FAUCET_BTC_ADDRESS']
+let FAUCET_ADDRESS = FAUCET_BTC_ADDRESS
+if(!FAUCET_ADDRESS) throw Error("Need Faucet Address!")
 
-let TRADE_PAIR  = "ETH_BTC"
+let TRADE_PAIR  = "BTC_ETH"
 let INPUT_ASSET = ASSET
-let OUTPUT_ASSET = "BTC"
+let OUTPUT_ASSET = "ETH"
 
 //hdwallet Keepkey
 let Controller = require("@keepkey/keepkey-hardware-controller")
+
 
 let noBroadcast = false
 
@@ -47,13 +50,9 @@ let blockchains = [
 ]
 
 let txid:string
-
-let IS_SIGNED: boolean
-
 let invocationId:string
-//let invocationId = 'd1b7ef38-602b-434e-8a29-28df2543eca0'
-
-let FLAG_RBF=true
+//let invocationId = "a49f0e76-08b2-45d0-8812-883a5c17c079"
+let IS_SIGNED: boolean
 
 const start_keepkey_controller = async function(){
     try{
@@ -123,24 +122,41 @@ const test_service = async function () {
         const username = "sdk:test-user-1234";
         assert(username)
 
+        //add custom path
+        let paths:any = [
+            {
+                note:"Bitcoin account Native Segwit (Bech32)",
+                blockchain: 'bitcoin',
+                symbol: 'BTC',
+                network: 'BTC',
+                script_type:"p2wpkh", //bech32
+                available_scripts_types:['p2pkh','p2sh','p2wpkh','p2sh-p2wpkh'],
+                type:"zpub",
+                addressNList: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0],
+                addressNListMaster: [0x80000000 + 84, 0x80000000 + 0, 0x80000000 + 0, 0, 0],
+                curve: 'secp256k1',
+                showDisplay: false // Not supported by TrezorConnect or Ledger, but KeepKey should do it
+            }
+        ]
+        
         let config:any = {
             blockchains,
             username,
             queryKey,
             spec,
-            paths:[],
+            paths,
             wss
         }
         let app = new SDK.SDK(spec,config)
         log.info(tag,"app: ",app)
-
+        //
         //get HDwallet
         let wallet = await start_keepkey_controller()
         // let wallet = await start_software_wallet()
         log.info(tag,"wallet: ",wallet)
 
         //init with HDwallet
-        let result = await app.init()
+        let result = await app.init(wallet)
         log.info(tag,"result: ",result)
 
         //pair wallet
@@ -149,45 +165,74 @@ const test_service = async function () {
             log.info(tag,"resultPair: ",resultPair)
         }
 
+        //update
+        let refreshResult = await app.refresh()
+        log.info("refreshResult: ",refreshResult)
+
+        let refreshUpdate = await app.updateContext()
+
         //get available inputs
-        assert(app.availableInputs)
+        // assert(app.availableInputs)
         //get available outputs
-        assert(app.availableOutputs)
+        // assert(app.availableOutputs)
 
         log.info(tag,"availableInputs: ",app.availableInputs.length)
-        log.info(tag,"availableOutputs: ",app.availableOutputs.length)
+        log.info(tag,"balances: ",app.balances.length)
+        // log.debug(tag,"balances: ",app.balances)
 
-        if(!invocationId){
+        //get addy
+        let preferedPubkey = await app.getPubkey('BTC')
+        log.info("preferedPubkey: ",preferedPubkey)
 
-            let swap:any = {
-                input:{
-                    blockchain:BLOCKCHAIN,
-                    asset:ASSET,
+        //balance check of addy
+        let balance = await app.balances.filter((e:any) => e.pubkey == preferedPubkey.pubkey)[0]
+        log.info(tag,"(check) balance: ",balance.balance)
+        log.info(tag,"(check) balance: ",balance)
+        assert(balance)
+        if(balance.balance < TEST_AMOUNT) throw Error("Low funds! top off!")
+
+        //estimated fee
+
+        //sendMax
+
+        //calculate max balance
+
+        if(!invocationId) {
+            let swap: any = {
+                input: {
+                    blockchain: BLOCKCHAIN,
+                    asset: ASSET,
                 },
-                output:{
-                    blockchain:BLOCKCHAIN_OUTPUT,
-                    asset:OUTPUT_ASSET,
+                output: {
+                    blockchain: BLOCKCHAIN_OUTPUT,
+                    asset: OUTPUT_ASSET,
                 },
-                amount:TEST_AMOUNT,
-                noBroadcast:true
+                amount: TEST_AMOUNT,
+                noBroadcast: true
             }
-            if(FLAG_RBF) swap.replace = true
-            log.info(tag,"swap: ",swap)
+            log.info(tag, "swap: ", swap)
 
             let tx = {
-                type:'swap',
-                payload:swap
+                type: 'swap',
+                payload: swap
             }
 
+            log.notice(tag, "CHECKPOINT0: pre-buildTx")
+
             invocationId = await app.build(tx)
-            log.info(tag,"invocationId: ",invocationId)   
+            log.info(tag, "invocationId: ", invocationId)
             assert(invocationId)
 
-            //sign
+            //get invocation
+            let invocationInfo = await app.getInvocation(invocationId)
+            log.info(tag, "invocationInfo: ", invocationInfo)
+
+            //@TODO if no signedTx then sign again
             let resultSign = await app.sign(invocationId)
             log.info(tag,"resultSign: ",resultSign)
 
 
+            //@TODO if no broadcastInfo then broadcast again
             //get txid
             let payload = {
                 noBroadcast:false,
@@ -196,8 +241,11 @@ const test_service = async function () {
             }
             let resultBroadcast = await app.broadcast(payload)
             log.info(tag,"resultBroadcast: ",resultBroadcast)
-
         }
+        assert(invocationId)
+
+
+
 
         /*
             Status codes
@@ -221,9 +269,6 @@ const test_service = async function () {
             //
             let invocationInfo = await app.getInvocation(invocationId)
             log.debug(tag,"invocationInfo: (VIEW) ",invocationInfo)
-            log.info(tag,"invocationInfo: (VIEW): ",invocationInfo.state)
-            log.info(tag,"txid: (VIEW): ",invocationInfo.signedTx.txid)
-            log.info(tag,"depositUrl: (VIEW): ",invocationInfo.depositUrl)
 
             if(invocationInfo && invocationInfo.isConfirmed){
                 log.test(tag,"Confirmed!")
@@ -244,9 +289,8 @@ const test_service = async function () {
             await sleep(6000)
             let invocationInfo = await app.getInvocation(invocationId)
             log.test(tag,"invocationInfo: ",invocationInfo.state)
-            log.test(tag,"invocationInfo: ",invocationInfo.withdrawalUrl)
 
-            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled && invocationInfo.withdrawalUrl) {
+            if(invocationInfo && invocationInfo.isConfirmed && invocationInfo.isFullfilled) {
                 log.test(tag,"is fullfilled!")
                 fullfillmentTxid = invocationInfo.fullfillmentTxid
                 isFullfilled = true

@@ -156,7 +156,7 @@ const test_service = async function () {
         // log.info(tag,"pubkeys: ",app.pubkeys)
         // log.info(tag,"balances: ",app.balances)
         // log.info(tag,"nfts: ",app.nfts)
-        log.info(tag, "wallets: ", app.wallets);
+        log.debug(tag, "wallets: ", app.wallets);
         log.info(tag, "pubkeys: ", app.pubkeys.length);
         log.info(tag, "balances: ", app.balances.length);
         log.info(tag, "nfts: ", app.nfts.length);
